@@ -9,7 +9,6 @@ Requirements: Windows 10/11 x64, Node.js 24 LTS, npm, Git, and Chrome/Edge 120+ 
 ```powershell
 git clone https://github.com/kamol-nazarov/LyricGlass.git
 cd LyricGlass
-git switch 0.1.0
 npm ci
 npm run dev
 ```
@@ -44,6 +43,8 @@ The Ledger card defaults to 400px, five lyric lines, and a compact time/status/d
 When needed, click **Choose lyric match →** on the widget. Click **Use lyrics** beside the correct result, checking artist, recording, duration and **Synced** status. Search by title/artist or import a UTF-8 `.lrc` file (maximum 200 KB) if none is right. Choices persist per video ID.
 
 **Positive delay means lyrics appear later:** +2000 ms displays a ten-second line at video time twelve seconds. The gear steps by ±250 ms; full settings also accepts a numeric value. Offsets persist per video and selected record.
+
+If a record's lyric timeline runs past the video, the widget now flags **Fix lyric timing** instead of presenting those timestamps as synchronized. Matching results label these records **Timing mismatch**. In matching settings, expand **Align lyrics to the vocals**: pause the video at the beginning of a sung line, choose that line from the list, then click **Align selected line now**. The app calculates and saves the offset from the playback clock. This corrects a constant shift; a different edit, missing verse or changing drift requires a matching lyric recording/LRC, not arbitrary tempo scaling. Invalid duration metadata alone is not proof that a different provider result contains correct timestamps.
 
 **Line sync** highlights the current line using supplied timestamps. **Word sync** is used only with enhanced LRC containing actual `<mm:ss.xx>` word timestamps. Word timing is never guessed. Plain-only lyrics are explicitly untimed and shown for manual reading in settings.
 
@@ -136,3 +137,4 @@ YouTube's DOM can change and require adapter updates. Livestreams, DJ mixes, mul
 - [ ] Remove a monitor and verify position recovery.
 
 Lyrics are provided by [LRCLIB](https://lrclib.net/docs). Fonts retain SIL Open Font License files in `assets/fonts`. No project-wide redistribution license has been selected; making the repository public does not add one automatically.
+
