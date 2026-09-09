@@ -4,12 +4,12 @@ import {songQuery} from '../../shared/lyrics';
 import {displayDelay,displayTime,ledgerPosition,timedWordFill,highlightMode} from '../../shared/ledger';
 import './ledger.css';
 
-type Props={state:ViewState;act:(command:Command)=>Promise<void>;error:string};
+type Props={state:ViewState;act:(command:Command)=>Promise<void>;error:string;preview?:boolean};
 function Gear(){return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9.7 4.3 10.3 2h3.4l.6 2.3 2 .9 2.1-.7 1.7 2.9-1.6 1.7.2 2.2 1.8 1.4-1.7 2.9-2.3-.4-1.8 1.3-.6 2.3h-3.4l-.6-2.3-2-1-2.1.8-1.7-3 1.6-1.6-.2-2.2L2 8.1l1.7-2.9 2.3.4 1.8-1.3Z" transform="translate(1 1)"/><circle cx="12" cy="12" r="3"/></svg>;}
 
 function Karaoke({text,state}:{text:string;state:ViewState}){
   const ref=useRef<HTMLSpanElement>(null);
-  const mode=highlightMode(state.ledger.clock,text);
+  const mode=state.settings.karaoke===false?'line':highlightMode(state.ledger.clock,text);
   const clock=useRef({value:state.ledger.clock,received:performance.now()});
   useLayoutEffect(()=>{clock.current={value:state.ledger.clock,received:performance.now()};},[state.ledger.clock]);
   useEffect(()=>{
@@ -33,7 +33,7 @@ function Karaoke({text,state}:{text:string;state:ViewState}){
   return <span ref={ref} className="karaoke" aria-label={text}>{text.split(/(\s+)/u).map((part,index)=>/^\s+$/.test(part)?<React.Fragment key={index}>{part}</React.Fragment>:<span data-word key={index} aria-hidden="true">{part}</span>)}</span>;
 }
 
-export function LedgerOverlay({state:s,act,error}:Props){
+export function LedgerOverlay({state:s,act,error,preview=false}:Props){
   const [open,setOpen]=useState(false);
   const dragging=useRef<number|null>(null);
   const card=useRef<HTMLElement>(null),popover=useRef<HTMLDivElement>(null),gear=useRef<HTMLButtonElement>(null);
@@ -44,12 +44,13 @@ export function LedgerOverlay({state:s,act,error}:Props){
   const track=split.artist&&(!s.artist||split.artist.toLowerCase()===s.artist.toLowerCase())?split.title:display.title;
   const artist=s.artist||split.artist||s.record?.artistName||'';
   const needsMatch=!!s.videoId&&!s.record&&((s.candidates?.length??0)>0||s.status.startsWith('No match'));
+  const needsTiming=!!s.timingWarning&&s.status.startsWith('Timing');
   const openMatch=()=>{setOpen(false);void act({type:'openSettings',section:'match'});};
   const delay=(value:number)=>{if(s.videoId)void act({type:'delay',videoId:s.videoId,value:Math.max(-600000,Math.min(600000,value))});};
   const theme=(value:'dark'|'light')=>void act({type:'settings',patch:{theme:value,opacity:value==='light'?.82:.72}});
   const drag=(phase:'start'|'move'|'end',event:React.PointerEvent<HTMLElement>)=>void window.lyricglass.command({type:'drag',phase,x:event.screenX,y:event.screenY});
   const dragStart=(event:React.PointerEvent<HTMLElement>)=>{
-    if(s.settings.locked||event.button!==0||(event.target as Element).closest('button,input,select,[role="dialog"]'))return;
+    if(preview||s.settings.locked||event.button!==0||(event.target as Element).closest('button,input,select,[role="dialog"]'))return;
     event.preventDefault();dragging.current=event.pointerId;event.currentTarget.setPointerCapture(event.pointerId);drag('start',event);
   };
   const dragEnd=(event:React.PointerEvent<HTMLElement>)=>{if(dragging.current!==event.pointerId)return;dragging.current=null;drag('end',event);};
@@ -64,6 +65,7 @@ export function LedgerOverlay({state:s,act,error}:Props){
     return()=>{document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape);window.removeEventListener('blur',close);};
   },[open]);
   useLayoutEffect(()=>{
+    if(preview)return;
     let resizeTimer:ReturnType<typeof setTimeout>|undefined;
     const measure=()=>{
       const height=card.current?.getBoundingClientRect().height??200;
@@ -74,7 +76,7 @@ export function LedgerOverlay({state:s,act,error}:Props){
     // measurement, not a native-window resize on every animation frame.
     const observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(measure,100);});if(card.current)observer.observe(card.current);if(popover.current)observer.observe(popover.current);measure();
     return()=>{observer.disconnect();clearTimeout(resizeTimer);};
-  },[open]);
+  },[open,preview]);
   useLayoutEffect(()=>{
     const next=new Map<number,number>();
     const animate=lastFrame.current.video===s.videoId&&s.ledger.currentIndex===lastFrame.current.index+1&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -85,20 +87,20 @@ export function LedgerOverlay({state:s,act,error}:Props){
     }
     positions.current=next;lastFrame.current={video:s.videoId,index:s.ledger.currentIndex};
   },[s.videoId,s.ledger.currentIndex]);
-  return <section ref={card} className={`ledger-card ${s.settings.locked?'is-locked':''} ${s.settings.textOnly?'is-text-only':''}`} data-theme={s.settings.theme} onPointerDown={dragStart} onPointerMove={event=>{if(dragging.current===event.pointerId)drag('move',event);}} onPointerUp={dragEnd} onPointerCancel={dragEnd} onLostPointerCapture={dragEnd} style={{'--glass-alpha':s.settings.opacity,'--current-size':`${s.settings.fontSize}px`} as React.CSSProperties}>
+  return <section ref={card} className={`ledger-card ${s.settings.locked?'is-locked':''} ${s.settings.textOnly?'is-text-only':''}`} data-theme={s.settings.theme==='system'?s.resolvedTheme??'dark':s.settings.theme} onPointerDown={dragStart} onPointerMove={event=>{if(dragging.current===event.pointerId)drag('move',event);}} onPointerUp={dragEnd} onPointerCancel={dragEnd} onLostPointerCapture={dragEnd} style={{'--glass-alpha':s.settings.opacity,'--current-size':`${s.settings.fontSize}px`} as React.CSSProperties}>
     <header className="ledger-header">
       <div className="ledger-heading"><div className="ledger-eyebrow">NOW PLAYING</div><div className="ledger-track" title={`${track}${artist?` · ${artist}`:''}`}><strong>{track}</strong>{artist&&<span> · {artist}</span>}</div></div>
-      <button ref={gear} className="ledger-gear" aria-label="Overlay settings" aria-haspopup="dialog" aria-expanded={open} disabled={s.settings.locked} title={s.settings.locked?'Ctrl+Alt+K to unlock':'Overlay settings'} onClick={()=>setOpen(value=>!value)}><Gear/></button>
+      <button ref={gear} className="ledger-gear" aria-label="Overlay settings" aria-haspopup="dialog" aria-expanded={open} disabled={s.settings.locked} tabIndex={preview?-1:0} title={s.settings.locked?'Ctrl+Alt+K to unlock':'Overlay settings'} onClick={()=>{if(!preview)setOpen(value=>!value);}}><Gear/></button>
     </header>
     <div className="lyric-ledger" ref={ledger} aria-label="Lyrics">
       <span className="ledger-marker" aria-hidden="true"/>
       {s.ledger.lines.map(line=><div key={`${s.videoId}:${line.index}`} data-line-index={line.index} className={`ledger-line ${line.relative===0?'is-current':line.relative<0?'is-past':'is-future'} ${Math.abs(line.relative)===2?'is-distant':''}`}>
-        {line.relative===0?(line.text?<Karaoke text={line.text} state={s}/>:needsMatch?(!s.settings.locked?<button className="match-prompt" onClick={openMatch}>Choose lyric match →</button>:<span className="ledger-neutral">Unlock with Ctrl+Alt+K to choose lyrics</span>):<span className="ledger-neutral">{s.ledger.currentIndex<0||!s.ledger.synced?s.status:'\u00a0'}</span>):line.text||'\u00a0'}
+        {line.relative===0?(line.text?<Karaoke text={line.text} state={s}/>:needsMatch||needsTiming?(!s.settings.locked?<button className="match-prompt" onClick={openMatch}>{needsTiming?'Fix lyric timing →':'Choose lyric match →'}</button>:<span className="ledger-neutral">Unlock with Ctrl+Alt+K to adjust lyrics</span>):<span className="ledger-neutral">{s.ledger.currentIndex<0||!s.ledger.synced?s.status:'\u00a0'}</span>):line.text||'\u00a0'}
       </div>)}
     </div>
     <footer className="ledger-footer">
       <span className="ledger-time">{displayTime(s.ledger.clock.position)} / {displayTime(s.ledger.clock.duration)}</span><span className="ledger-spacer"/>
-      <span className="ledger-sync" title={`${s.connection} · ${s.status} · ${highlightMode(s.ledger.clock,s.current??'')==='word'?'Word timestamps available':'Line timestamps only'}`}><span className={`sync-dot ${s.ledger.synced?'is-synced':''}`}/>{s.ledger.synced?`${highlightMode(s.ledger.clock,s.current??'')} sync`:'waiting'}</span>
+      <span className="ledger-sync" title={`${s.connection} · ${s.status} · ${highlightMode(s.ledger.clock,s.current??'')==='word'?'Word timestamps available':'Line timestamps only'}`}><span className={`sync-dot ${s.ledger.synced?'is-synced':''}`}/>{s.ledger.synced?`${s.settings.karaoke===false?'line':highlightMode(s.ledger.clock,s.current??'')} sync`:'waiting'}</span>
       <span className="delay-chip" title="Positive lyric delay means lyrics appear later">{displayDelay(s.delay)}</span>
     </footer>
     {error&&<p className="ledger-error" role="alert">{error}</p>}

@@ -35,6 +35,19 @@ export function selectLines(lines: LyricLine[], position: number, delay = 0, end
   return { previous: lines[i-1]?.text || '', current: lines[i]?.text || '', next: lines[i+1]?.text || '', index: i };
 }
 export interface RecordLyrics { id: number; trackName: string; artistName: string; albumName: string; duration: number; instrumental: boolean; plainLyrics: string | null; syncedLyrics: string | null }
+export function timelineOverrun(lines:LyricLine[],duration:number|null,delay=0):number {
+  if(duration===null||duration<=0)return 0;
+  let last:LyricLine|undefined;
+  for(let i=lines.length-1;i>=0;i--)if(lines[i].text.trim()){last=lines[i];break;}
+  const finalWord=last?.words?.at(-1);
+  const end=last?Math.max(last.time,finalWord?.end??finalWord?.start??last.time):0;
+  return last?Math.max(0,end+delay/1000-duration):0;
+}
+export function recordTimingWarning(record:RecordLyrics):string|undefined{
+  if(!record.syncedLyrics)return undefined;
+  const overrun=timelineOverrun(parseLrc(record.syncedLyrics).lines,record.duration);
+  return overrun>2?`Lyric timestamps exceed this recording by ${Math.ceil(overrun)} seconds.`:undefined;
+}
 function titleDecoration(value:string) {
   const words=value.toLowerCase().trim().split(/[\s,|/–—-]+/);
   const media=/^(?:video|audio|lyrics?|visuali[sz]er|hd|uhd|4k|8k|1080p|2160p)$/;
@@ -51,6 +64,7 @@ export function songQuery(title: string, artist: string) {
 }
 const distinctions = (s:string) => [...s.toLowerCase().matchAll(/\b(live|acoustic|remix|cover|instrumental|sped up|slowed|remaster(?:ed)?)\b/g)].map(x=>x[1]).sort().join('|');
 export function matchScore(query: {title:string;artist:string;duration:number|null}, r: RecordLyrics) {
+  if(recordTimingWarning(r)||r.syncedLyrics&&timelineOverrun(parseLrc(r.syncedLyrics).lines,query.duration)>2)return 0;
   if (distinctions(query.title) !== distinctions(r.trackName)) return 0;
   if (canonical(query.title) !== canonical(r.trackName)) return 0;
   if (!query.artist || canonical(query.artist) !== canonical(r.artistName)) return .45;
