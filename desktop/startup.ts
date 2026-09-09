@@ -1,5 +1,6 @@
 export function loginItemOptions(enabled:boolean,packaged:boolean,executable:string,appPath:string){
-  return{openAtLogin:enabled,path:executable,args:packaged?[]:[`"${appPath}"`],name:'LyricGlass'};
+  // Electron quotes each Windows argument; embedding quotes changes the path value.
+  return{openAtLogin:enabled,path:executable,args:packaged?[]:[appPath],name:'LyricGlass'};
 }
 interface LoginApp{setLoginItemSettings(options:ReturnType<typeof loginItemOptions>):void;getLoginItemSettings(options:{path:string;args:string[]}):{openAtLogin:boolean}}
 export function configureStartup(app:LoginApp,enabled:boolean,packaged:boolean,executable:string,appPath:string){
