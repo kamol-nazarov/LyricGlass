@@ -1,0 +1,30 @@
+import{describe,it,expect}from'vitest';
+import{renderToStaticMarkup}from'react-dom/server';
+import{createElement}from'react';
+import{ledgerLines,ledgerPosition,lineProgress,wordFill,timedWordFill,displayDelay,displayTime,highlightMode,type LedgerClock}from'../shared/ledger';
+import{parseLrc}from'../shared/lyrics';
+import{settings}from'../shared/settings';
+import{LedgerOverlay}from'../desktop/renderer/LedgerOverlay';
+import type{ViewState}from'../shared/ui';
+import{OverlayDrag}from'../shared/overlay-drag';
+const lines=parseLrc('[00:00]Morning paper\n[00:05]Silver ink\n[00:10]Little lights drift away\n[00:15]Open windows\n[00:20]Day begins\n[00:25]Quiet city').lines;
+const clock=(patch:Partial<LedgerClock>={}):LedgerClock=>({position:12,duration:30,rate:1,advancing:true,validForMs:5000,delay:0,lineStart:10,lineEnd:15,...patch});
+describe('ledger timing presentation',()=>{
+ it('moves the whole card relative to the grab point and ignores ended or stale drags',()=>{const drag=new OverlayDrag();expect(drag.move(10,20,0)).toBeNull();drag.start(100,200,500,600,0);expect(drag.move(130,210,20)).toEqual({x:530,y:610});expect(drag.move(90,180,40)).toEqual({x:490,y:580});drag.end();expect(drag.move(150,250,60)).toBeNull();drag.start(100,200,500,600,0);expect(drag.move(120,220,11000)).toBeNull();});
+ it('provides current plus two previous and two next lines in order',()=>{const f=ledgerLines(lines,12,0);expect(f.currentIndex).toBe(2);expect(f.lines.map(l=>l.text)).toEqual(['Morning paper','Silver ink','Little lights drift away','Open windows','Day begins']);expect(f.lines.map(l=>l.relative)).toEqual([-2,-1,0,1,2]);});
+ it('keeps five slots at track edges without inventing lyrics',()=>{const f=ledgerLines(lines,-1,0);expect(f.currentIndex).toBe(-1);expect(f.lines.slice(0,3).map(l=>l.text)).toEqual(['','','']);const end=ledgerLines(lines,28,0);expect(end.lines.slice(-2).map(l=>l.text)).toEqual(['','']);});
+ it('moves selection and the word sweep later for a positive lyric delay',()=>{expect(ledgerLines(lines,11,2000).currentIndex).toBe(1);expect(lineProgress(clock({delay:2000}),12)).toBe(0);expect(lineProgress(clock({delay:2000}),14.5)).toBe(.5);expect(lineProgress(clock({delay:-2000}),10.5)).toBe(.5);});
+ it('advances from a renderer-local anchor and follows playback speed',()=>{expect(ledgerPosition(clock({rate:2}),100000,101000)).toBe(14);expect(ledgerPosition(clock({rate:.5}),100000,101000)).toBe(12.5);});
+ it('freezes paused/buffering clocks and expires advancement at the remaining stale deadline',()=>{expect(ledgerPosition(clock({advancing:false}),0,3000)).toBe(12);expect(ledgerPosition(clock({validForMs:1000}),0,50000)).toBe(13);expect(ledgerPosition(clock({position:29}),0,4000)).toBe(30);});
+ it('maps line duration to complete, partial and unsung words',()=>{expect(wordFill(.375,0,4)).toBe(1);expect(wordFill(.375,1,4)).toBe(.5);expect(wordFill(.375,2,4)).toBe(0);expect(lineProgress(clock(),9)).toBe(0);expect(lineProgress(clock(),50)).toBe(1);expect(lineProgress(clock({lineEnd:null}),12)).toBe(0);});
+ it('uses imported enhanced-LRC word timing when available',()=>{const parsed=parseLrc('[offset:500]\n[00:10]<00:10>Paper <00:11>stars <00:14>shine<00:15>\n[00:16]Next');expect(parsed.lines[0].text).toBe('Paper stars shine');expect(parsed.lines[0].words).toEqual([{start:9.5,end:10.5},{start:10.5,end:13.5},{start:13.5,end:14.5}]);const c=clock({lineStart:9.5,lineEnd:15.5,words:parsed.lines[0].words});expect(timedWordFill(c,12,1,3)).toBe(.5);expect(timedWordFill(c,12,0,3)).toBe(1);expect(timedWordFill(c,12,2,3)).toBe(0);});
+ it('uses line-only highlighting instead of guessed word timing for phrase-level or absent tags',()=>{const parsed=parseLrc('[00:10]<00:10>Paper stars <00:12>shine');expect(parsed.lines[0].words).toBeUndefined();expect(parsed.lines[0].text).toBe('Paper stars shine');expect(highlightMode(clock(),'Paper stars shine')).toBe('line');for(let i=0;i<3;i++){expect(timedWordFill(clock(),9,i,3)).toBe(0);expect(timedWordFill(clock(),10,i,3)).toBe(1);expect(timedWordFill(clock(),12.5,i,3)).toBe(1);}});
+ it('uses word mode only when real timestamps cover the visible words',()=>{expect(highlightMode(clock({words:[{start:10,end:11},{start:11,end:12}]}),'Paper stars')).toBe('word');expect(highlightMode(clock({words:[{start:10,end:11}]}),'Paper stars')).toBe('line');});
+ it('formats footer times and positive/negative offsets unambiguously',()=>{expect(displayTime(105.9)).toBe('1:45');expect(displayTime(null)).toBe('–:––');expect(displayDelay(250)).toBe('+250 ms');expect(displayDelay(-250)).toBe('−250 ms');expect(displayDelay(0)).toBe('0 ms');});
+ it('validates both themes and defaults to the requested card size',()=>{expect(settings({})).toMatchObject({theme:'dark',width:400,fontSize:18,opacity:.72});expect(settings({theme:'light'})).toMatchObject({theme:'light',opacity:.82});expect(settings({theme:'unknown'}).theme).toBe('dark');});
+ it('renders the compact header, five lines and footer without the retired controls',()=>{
+  const state={settings:settings({}),videoId:'abcdefghijk',title:'Test Ensemble - Paper Satellites (4K Official Music Video)',artist:'',status:'Synchronized lyrics',connection:'Connected to browser',delay:250,ledger:{...ledgerLines(lines,12,0),synced:true,clock:clock()},record:null} as ViewState;
+  const html=renderToStaticMarkup(createElement(LedgerOverlay,{state,act:async()=>{},error:''}));
+  expect(html).toContain('NOW PLAYING');expect(html).toContain('<strong>Paper Satellites</strong>');expect(html).toContain('Test Ensemble');expect(html.match(/data-line-index=/g)).toHaveLength(5);expect(html).toContain('0:12');expect(html).toContain('+250 ms');expect(html).not.toContain('Drag to move');expect(html).not.toContain('Settings / match');expect(html).not.toContain('Earlier −250');expect(html).toContain('Overlay settings');
+ });
+});

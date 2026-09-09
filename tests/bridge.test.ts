@@ -1,0 +1,20 @@
+import{EventEmitter}from'node:events';
+import{describe,it,expect,vi,beforeEach,afterEach}from'vitest';
+const boundary=vi.hoisted(()=>({server:null as any,wss:null as any}));
+vi.mock('node:http',async()=>{const{EventEmitter}=await import('node:events');return{createServer:()=>{const s=new EventEmitter() as any;s.listen=(port:number,host:string,callback:()=>void)=>{s.port=port;s.host=host;callback();};s.close=()=>{};boundary.server=s;return s;}};});
+vi.mock('ws',async()=>{const{EventEmitter}=await import('node:events');return{WebSocket:{OPEN:1},WebSocketServer:class extends EventEmitter{clients=new Set();options:unknown;constructor(options:unknown){super();this.options=options;boundary.wss=this;}close(){}handleUpgrade(_req:unknown,socket:unknown,_head:unknown,callback:(ws:unknown)=>void){callback(socket);}}};});
+import{Bridge}from'../desktop/bridge';
+import type{Store}from'../desktop/store';
+import{playback}from'./fixtures';
+class Socket extends EventEmitter{readyState=1;sent:any[]=[];code=0;closed=false;send(s:string){this.sent.push(JSON.parse(s));}close(code:number){this.code=code;this.closed=true;this.emit('close');}terminate(){this.close(1006);}destroy(){this.closed=true;}message(m:unknown){this.emit('message',Buffer.from(typeof m==='string'?m:JSON.stringify(m)),false);}}
+const origin='chrome-extension://'+'a'.repeat(32),secret='ab'.repeat(32);
+function setup(){const store={data:{settings:{port:43821},secret,origin:null},save:()=>{}}as unknown as Store;const messages:unknown[]=[];const closed:string[]=[];const statuses:string[]=[];const bridge=new Bridge(store,s=>statuses.push(s),(...args)=>messages.push(args),id=>closed.push(id));bridge.start();return{bridge,store,messages,closed,statuses};}
+const connect=(ws:Socket,extension=origin)=>boundary.wss.emit('connection',ws,{headers:{origin:extension}});
+const auth={v:1,type:'auth',secret,instance:'browser1'};
+beforeEach(()=>vi.useFakeTimers());afterEach(()=>vi.useRealTimers());
+describe('bridge with mocked sockets and HTTP listener',()=>{
+ it('binds only loopback, rejects website upgrades and reports conflicts',()=>{const {bridge,statuses}=setup();expect(boundary.server.host).toBe('127.0.0.1');expect(boundary.server.port).toBe(43821);const socket=new Socket();boundary.server.emit('upgrade',{url:'/',headers:{origin:'https://www.youtube.com',host:'127.0.0.1:43821'}},socket,Buffer.alloc(0));expect(socket.closed).toBe(true);boundary.server.emit('error',{code:'EADDRINUSE'});expect(statuses.at(-1)).toContain('Port 43821 is in use');bridge.stop();});
+ it('requires authentication before accepting playback and expires unauthenticated clients',async()=>{const{bridge,messages}=setup();const ws=new Socket();connect(ws);ws.message({v:1,type:'snapshot',tab:1,document:'document1',playback:playback()});expect(ws.code).toBe(4003);expect(messages).toHaveLength(0);const idle=new Socket();connect(idle);await vi.advanceTimersByTimeAsync(5000);expect(idle.code).toBe(4001);bridge.stop();});
+ it('pins origin on successful auth, acknowledges heartbeats and rejects malformed data',()=>{const{bridge,store,messages}=setup();const ws=new Socket();connect(ws);ws.message(auth);expect(store.data.origin).toBe(origin);expect(ws.sent).toEqual([{v:1,type:'ready'}]);ws.message({v:1,type:'heartbeat'});expect(ws.sent.at(-1).type).toBe('pong');ws.message({v:1,type:'snapshot',tab:1,document:'document1',playback:playback()});expect(messages).toHaveLength(1);ws.message('{bad');expect(ws.code).toBe(4002);bridge.stop();});
+ it('replaces worker connections and drops old-client updates',()=>{const{bridge,messages,closed}=setup();const a=new Socket(),b=new Socket();connect(a);a.message(auth);connect(b);b.message(auth);expect(a.closed).toBe(true);expect(closed).toHaveLength(1);a.message({v:1,type:'snapshot',tab:1,document:'document1',playback:playback()});expect(messages).toHaveLength(0);b.message({v:1,type:'snapshot',tab:1,document:'document1',playback:playback({position:30})});expect(messages).toHaveLength(1);bridge.stop();});
+});

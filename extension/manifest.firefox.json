@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "LyricGlass — YouTube bridge",
+  "version": "0.1.0",
+  "description": "Send YouTube and YouTube Music playback to your paired local LyricGlass overlay.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "lyricglass@local.invalid",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*",
+    "https://music.youtube.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "scripts": [
+      "worker.js"
+    ]
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "LyricGlass"
+  },
+  "options_ui": {
+    "page": "popup.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src ws://127.0.0.1:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "name": "lyricglass",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local YouTube synchronized lyrics overlay for Windows",
+  "author": "LyricGlass local project",
+  "main": "dist/desktop/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "build:extension": "node scripts/build.mjs extension",
+    "test": "vitest run",
+    "package:win": "npm run build && electron-builder --win nsis",
+    "version:new": "node scripts/version-control.mjs new",
+    "version:check": "node scripts/version-control.mjs check",
+    "hooks:install": "node scripts/version-control.mjs install-hooks",
+    "prepare": "node scripts/version-control.mjs install-hooks"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "ws": "8.18.3"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/ws": "^8.18.0",
+    "electron": "44.3.0",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "build": {
+    "appId": "local.lyricglass.desktop",
+    "productName": "LyricGlass",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/desktop/**",
+      "dist/renderer/**",
+      "assets/**",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  },
+  "repository": {
+    "url": "git+https://github.com/kamol-nazarov/LyricGlass.git",
+    "type": "git"
+  },
+  "homepage": "https://github.com/kamol-nazarov/LyricGlass#readme"
+}

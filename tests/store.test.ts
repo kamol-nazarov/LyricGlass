@@ -1,0 +1,13 @@
+import{describe,it,expect,vi,beforeEach,afterEach}from'vitest';
+const disk=vi.hoisted(()=>({files:new Map<string,string>()}));
+vi.mock('node:fs',()=>({default:{existsSync:(p:string)=>disk.files.has(p),statSync:(p:string)=>({size:disk.files.get(p)?.length??0}),readFileSync:(p:string)=>disk.files.get(p),mkdirSync:()=>{},writeFileSync:(p:string,s:string)=>disk.files.set(p,s),renameSync:(a:string,b:string)=>{disk.files.set(b,disk.files.get(a)!);disk.files.delete(a);}}}));
+import{Store}from'../desktop/store';
+import{lyric}from'./fixtures';
+beforeEach(()=>{disk.files.clear();vi.useFakeTimers();});afterEach(()=>vi.useRealTimers());
+describe('bounded local storage with a fake filesystem',()=>{
+ it('persists a selected overlay theme without altering saved timing',()=>{const s=new Store('fake-data');s.attach('abcdefghijk',lyric);s.setDelay('abcdefghijk',2000);s.data.settings.theme='light';s.data.settings.opacity=.82;s.flush();const restored=new Store('fake-data');expect(restored.data.settings.theme).toBe('light');expect(restored.data.settings.opacity).toBe(.82);expect(restored.delay('abcdefghijk')).toBe(2000);});
+ it('persists settings, secret, selected match and per-match delays',()=>{const s=new Store('fake-data');s.data.settings.fontSize=30;s.attach('abcdefghijk',lyric);s.setDelay('abcdefghijk',2000);s.attach('abcdefghijk',{...lyric,id:2});s.setDelay('abcdefghijk',-500);s.attach('abcdefghijk',lyric);expect(s.delay('abcdefghijk')).toBe(2000);s.flush();const restored=new Store('fake-data');expect(restored.data.settings.fontSize).toBe(30);expect(restored.data.secret).toBe(s.data.secret);expect(restored.delay('abcdefghijk')).toBe(2000);});
+ it('bounds cache count and size while keeping recent entries',()=>{const s=new Store('fake-data');for(let i=0;i<100;i++){vi.setSystemTime(i);s.cachePut(String(i),[lyric]);}expect(Object.keys(s.data.cache)).toHaveLength(80);expect(s.cacheGet('0')).toBeUndefined();expect(s.cacheGet('99')).toEqual([lyric]);});
+ it('bounds video mappings and rejects corrupted local records',()=>{const s=new Store('fake-data');for(let i=0;i<260;i++){vi.setSystemTime(i);s.attach(String(i).padStart(11,'0'),lyric);}expect(Object.keys(s.data.mappings)).toHaveLength(250);s.flush();const file=[...disk.files.keys()][0];disk.files.set(file,JSON.stringify({settings:{fontSize:'bad'},mappings:{abcdefghijk:{record:{...lyric,duration:'bad'}}},secret:'bad',origin:'https://example.com'}));const restored=new Store('fake-data');expect(restored.data.mappings).toEqual({});expect(restored.data.settings.fontSize).toBe(18);expect(restored.data.origin).toBeNull();expect(restored.data.secret).toMatch(/^[a-f0-9]{64}$/);});
+});
+
