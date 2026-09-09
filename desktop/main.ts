@@ -38,8 +38,8 @@ async function command(e:Electron.IpcMainInvokeEvent,c:unknown){
   if(!senderOK(e)||!object(c)||!text(c.type,40))return{ok:false,error:'Request rejected'};
   try{
     const isPanel=panel?.webContents===e.sender;
-    if(['copyPairing','rotatePairing','search','select','import'].includes(c.type)&&!isPanel)throw Error('Open settings to perform this action.');
-    if(['search','select','import','delay'].includes(c.type)&&(!videoId(c.videoId)||c.videoId!==controller.video))throw Error('The selected video changed. Try again.');
+    if(['copyPairing','rotatePairing','search','select','import','align'].includes(c.type)&&!isPanel)throw Error('Open settings to perform this action.');
+    if(['search','select','import','delay','align'].includes(c.type)&&(!videoId(c.videoId)||c.videoId!==controller.video))throw Error('The selected video changed. Try again.');
     switch(c.type){
       case 'drag':{
         if(overlay?.webContents!==e.sender||store.data.settings.locked||!number(c.x,-100000,100000)||!number(c.y,-100000,100000)||!['start','move','end'].includes(c.phase as string))throw Error('Invalid drag');
@@ -62,6 +62,7 @@ async function command(e:Electron.IpcMainInvokeEvent,c:unknown){
       case 'height':if(overlay?.webContents!==e.sender||!integer(c.value,140,10000))throw Error('Invalid size');if(Math.abs(overlayHeight-c.value)>2){overlayHeight=c.value;resizeOverlay();}break;
       case 'search':if(!text(c.query,300)||!c.query.trim())throw Error('Enter a title and artist');await controller.lookup(c.query.trim(),'',true);break;
       case 'select':{if(!integer(c.id))throw Error('Invalid lyric ID');const r=controller.candidates.find(x=>x.id===c.id);if(!r)throw Error('Search again to choose this match');controller.choose(r);break;}
+      case 'align':if(!integer(c.recordId)||!integer(c.index))throw Error('Invalid timing line');controller.align(c.recordId,c.index);break;
       case 'delay':if(!number(c.value,-600000,600000))throw Error('Delay must be between -600000 and +600000 ms');store.setDelay(c.videoId as string,Math.round(c.value));break;
       case 'import':{
         const id=controller.video!;const choice=await dialog.showOpenDialog(panel!,{title:'Import lyrics for the selected YouTube video',filters:[{name:'LRC lyrics',extensions:['lrc']}],properties:['openFile']});
@@ -88,7 +89,7 @@ if(!app.requestSingleInstanceLock())app.quit();else{
     tray=new Tray(nativeImage.createFromBitmap(pixels,{width:32,height:32}));tray.setToolTip('LyricGlass — lyrics above your work');tray.on('double-click',()=>showSettings());menu();
     if(!globalShortcut.register('Control+Alt+L',toggleVisible))warnings.push('Ctrl+Alt+L is unavailable; use the tray to show/hide.');
     if(!globalShortcut.register('Control+Alt+K',toggleLock))warnings.push('Ctrl+Alt+K is unavailable; use the tray to unlock.');
-    ipcMain.handle('lyricglass:state',e=>{if(!senderOK(e))throw Error('Request rejected');return view();});ipcMain.handle('lyricglass:command',command);
+    ipcMain.handle('lyricglass:state',e=>{if(!senderOK(e))throw Error('Request rejected');return view();});ipcMain.handle('lyricglass:command',command);ipcMain.handle('lyricglass:timing-lines',(e,id)=>{if(!senderOK(e)||e.sender!==panel?.webContents||!videoId(id)||id!==controller.video)throw Error('Selected video changed or request rejected');return controller.timingLines();});
     bridge=new Bridge(store,s=>{connection=s;broadcast();},(c,i,m)=>controller.message(c,i,m),c=>controller.disconnect(c));bridge.start();
     pulse=setInterval(broadcast,100);screen.on('display-removed',()=>position());screen.on('display-metrics-changed',()=>position());
     if(process.argv.includes('--match'))showSettings('match');else if(!store.data.origin)showSettings();
@@ -96,6 +97,8 @@ if(!app.requestSingleInstanceLock())app.quit();else{
   app.on('window-all-closed',()=>{});
   app.on('before-quit',()=>{quitting=true;clearInterval(pulse);overlayLayout?.capture();controller?.close();bridge?.stop();globalShortcut.unregisterAll();tray?.destroy();try{store?.flush();}catch{}});
 }
+
+
 
 
 

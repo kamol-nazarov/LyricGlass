@@ -44,6 +44,7 @@ export function LedgerOverlay({state:s,act,error}:Props){
   const track=split.artist&&(!s.artist||split.artist.toLowerCase()===s.artist.toLowerCase())?split.title:display.title;
   const artist=s.artist||split.artist||s.record?.artistName||'';
   const needsMatch=!!s.videoId&&!s.record&&((s.candidates?.length??0)>0||s.status.startsWith('No match'));
+  const needsTiming=!!s.timingWarning&&s.status.startsWith('Timing');
   const openMatch=()=>{setOpen(false);void act({type:'openSettings',section:'match'});};
   const delay=(value:number)=>{if(s.videoId)void act({type:'delay',videoId:s.videoId,value:Math.max(-600000,Math.min(600000,value))});};
   const theme=(value:'dark'|'light')=>void act({type:'settings',patch:{theme:value,opacity:value==='light'?.82:.72}});
@@ -93,7 +94,7 @@ export function LedgerOverlay({state:s,act,error}:Props){
     <div className="lyric-ledger" ref={ledger} aria-label="Lyrics">
       <span className="ledger-marker" aria-hidden="true"/>
       {s.ledger.lines.map(line=><div key={`${s.videoId}:${line.index}`} data-line-index={line.index} className={`ledger-line ${line.relative===0?'is-current':line.relative<0?'is-past':'is-future'} ${Math.abs(line.relative)===2?'is-distant':''}`}>
-        {line.relative===0?(line.text?<Karaoke text={line.text} state={s}/>:needsMatch?(!s.settings.locked?<button className="match-prompt" onClick={openMatch}>Choose lyric match →</button>:<span className="ledger-neutral">Unlock with Ctrl+Alt+K to choose lyrics</span>):<span className="ledger-neutral">{s.ledger.currentIndex<0||!s.ledger.synced?s.status:'\u00a0'}</span>):line.text||'\u00a0'}
+        {line.relative===0?(line.text?<Karaoke text={line.text} state={s}/>:needsMatch||needsTiming?(!s.settings.locked?<button className="match-prompt" onClick={openMatch}>{needsTiming?'Fix lyric timing →':'Choose lyric match →'}</button>:<span className="ledger-neutral">Unlock with Ctrl+Alt+K to adjust lyrics</span>):<span className="ledger-neutral">{s.ledger.currentIndex<0||!s.ledger.synced?s.status:'\u00a0'}</span>):line.text||'\u00a0'}
       </div>)}
     </div>
     <footer className="ledger-footer">
