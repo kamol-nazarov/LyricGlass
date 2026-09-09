@@ -14,5 +14,6 @@
 .line-highlight{color:var(--accent)}
 .karaoke [data-word]{transition:none}
 .ledger-card .match-prompt{padding:7px 10px;border-radius:8px;font-size:13px;font-weight:600;color:var(--accent);text-align:left}.ledger-popover .open-match{padding:9px 10px;text-align:left;border-radius:8px;color:var(--accent);font-size:12px;font-weight:600}
+.ledger-card.is-text-only[data-theme=light]{text-shadow:0 1px 3px #fff,0 0 5px #fff}
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 — Settings window and live appearance preview
+
+- Rebuild settings as an 880px two-column window with custom title controls, an independently scrolling controls column, and a live Ledger preview.
+- Add Dark/Light/System theme selection, 360/400/460 widths, 14–28px text sizing, custom sliders, switches and compact delay controls.
+- Wire launch-at-startup, playback-only widget visibility and optional word highlighting to persisted preferences.
+- Preserve pairing, search/selection, LRC import, vocal alignment, per-record offsets and hotkeys.
+- Use labeled synthetic preview lyrics without changing the real playback source or positioning the real widget.
+
 ## 0.1.1 — Timing-data validation and vocal alignment
 
 - Reject automatic matches whose nonempty lyric timestamps run beyond their declared recording or the current video.
