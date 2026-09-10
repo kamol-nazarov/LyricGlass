@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — Installable tray application
+
+- Build a per-user Windows installer with Desktop/Start-menu shortcuts to the native GUI executable.
+- Installed launches go directly to the tray without npm, Node, a console window or an automatic settings window.
+- Add a bundled LyricGlass executable/tray icon and include both browser-extension folders in the installation.
+- Preserve local settings/pairing and migrate an already-enabled startup preference to the installed executable.
+- Validate packaging, silent per-user installation, desktop shortcut launch and absence of console child processes on the development Windows machine.
+
 ## 0.2.0 — Settings window and live appearance preview
 
 - Rebuild settings as an 880px two-column window with custom title controls, an independently scrolling controls column, and a live Ledger preview.

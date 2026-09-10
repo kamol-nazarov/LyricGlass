@@ -15,9 +15,11 @@ import { OverlayDrag } from '../shared/overlay-drag';
 import { OverlayLayout } from './overlay-layout';
 import { configureStartup } from './startup';
 import { STALE_MS } from '../shared/sync';
+import { initialSettingsPage } from '../shared/launch';
 const overlayDrag=new OverlayDrag();
 let overlayLayout:OverlayLayout|undefined;let overlayReady=false;
 app.setName('LyricGlass');
+if(process.platform==='win32')app.setAppUserModelId('local.lyricglass.desktop');
 let overlay:BrowserWindow|null=null,panel:BrowserWindow|null=null,tray:Tray|null=null,store:Store,controller:Controller,bridge:Bridge,quitting=false,connection='Starting bridge',overlayHeight=280;
 let previous='',pulse:ReturnType<typeof setInterval>;const warnings:string[]=[];
 const shortcuts=['Ctrl+Alt+L — show / hide','Ctrl+Alt+K — lock / unlock'];
@@ -91,17 +93,19 @@ if(!app.requestSingleInstanceLock())app.quit();else{
     overlay.once('ready-to-show',()=>{overlayReady=true;position();applyOverlay();});void overlay.loadFile(index);
     // Small bundled raster icon is generated from source bytes, independent of remote assets.
     const pixels=Buffer.alloc(32*32*4);for(let y=0;y<32;y++)for(let x=0;x<32;x++){const i=(y*32+x)*4;const line=Math.abs(y-(10+Math.sin(x/5)*3))<2||Math.abs(y-(21+Math.sin(x/5)*3))<2;pixels[i]=line?180:24;pixels[i+1]=line?230:39;pixels[i+2]=line?215:47;pixels[i+3]=255;}
-    tray=new Tray(nativeImage.createFromBitmap(pixels,{width:32,height:32}));tray.setToolTip('LyricGlass — lyrics above your work');tray.on('double-click',()=>showSettings());menu();
+    const trayIcon=nativeImage.createFromPath(path.join(app.getAppPath(),'assets/app-icon.png'));tray=new Tray(trayIcon.isEmpty()?nativeImage.createFromBitmap(pixels,{width:32,height:32}):trayIcon.resize({width:32,height:32}));tray.setToolTip('LyricGlass — right-click for settings and controls');tray.on('double-click',()=>showSettings());menu();
     if(!globalShortcut.register('Control+Alt+L',toggleVisible))warnings.push('Ctrl+Alt+L is unavailable; use the tray to show/hide.');
     if(!globalShortcut.register('Control+Alt+K',toggleLock))warnings.push('Ctrl+Alt+K is unavailable; use the tray to unlock.');
     ipcMain.handle('lyricglass:state',e=>{if(!senderOK(e))throw Error('Request rejected');return view();});ipcMain.handle('lyricglass:command',command);ipcMain.handle('lyricglass:timing-lines',(e,id)=>{if(!senderOK(e)||e.sender!==panel?.webContents||!videoId(id)||id!==controller.video)throw Error('Selected video changed or request rejected');return controller.timingLines();});
     bridge=new Bridge(store,s=>{connection=s;broadcast();},(c,i,m)=>controller.message(c,i,m),c=>controller.disconnect(c));bridge.start();
     nativeTheme.on('updated',broadcast);pulse=setInterval(()=>{syncVisibility();broadcast();},100);screen.on('display-removed',()=>position());screen.on('display-metrics-changed',()=>position());
-    if(process.argv.includes('--match'))showSettings('match');else if(process.argv.includes('--settings')||!store.data.origin)showSettings();
+    if(app.isPackaged&&store.data.settings.launchAtStartup){try{configureStartup(app,true,true,process.execPath,app.getAppPath());}catch{warnings.push('Could not update the startup entry to the installed executable. Toggle Launch at startup in settings to retry.');}}
+    const initialPage=initialSettingsPage(process.argv,!!store.data.origin,app.isPackaged);if(initialPage)showSettings(initialPage);
   }).catch(()=>{dialog.showErrorBox('LyricGlass could not start','Check local data permissions and reinstall dependencies.');app.quit();});
   app.on('window-all-closed',()=>{});
   app.on('before-quit',()=>{quitting=true;clearInterval(pulse);overlayLayout?.capture();controller?.close();bridge?.stop();globalShortcut.unregisterAll();tray?.destroy();try{store?.flush();}catch{}});
 }
+
 
 
 
