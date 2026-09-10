@@ -10,7 +10,7 @@ import type{Command,ViewState}from'../shared/ui';
 let root:Root,host:HTMLDivElement,state:ViewState,commands:Command[],frames:Map<number,FrameRequestCallback>,frameId:number,resizeCallbacks:Function[];
 const lines=parseLrc('[00:00]Morning paper\n[00:05]Silver ink\n[00:10]Little lights drift away\n[00:15]Open windows\n[00:20]Day begins').lines;
 function render(){root.render(createElement(LedgerOverlay,{state,act:dispatch,error:''}));}
-async function dispatch(command:Command){commands.push(command);if(command.type==='settings')state={...state,settings:settings({...state.settings,...command.patch})};if(command.type==='lock')state={...state,settings:{...state.settings,locked:!state.settings.locked}};if(command.type==='delay')state={...state,delay:command.value};render();}
+async function dispatch(command:Command){commands.push(command);if(command.type==='settings')state={...state,settings:settings({...state.settings,...command.patch})};if(command.type==='lock')state={...state,settings:{...state.settings,locked:!state.settings.locked}};if(command.type==='delay')state={...state,delay:command.value};if(command.type==='resetTiming')state={...state,delay:0};render();}
 const gear=()=>host.querySelector<HTMLButtonElement>('[aria-label="Overlay settings"]')!;
 const click=async(button:HTMLElement)=>{await act(async()=>button.click());};
 beforeEach(async()=>{
@@ -26,7 +26,7 @@ beforeEach(async()=>{
 });
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.useRealTimers();vi.restoreAllMocks();vi.unstubAllGlobals();});
 describe('compact popover behavior with mocked desktop boundary',()=>{
- it('opens matching directly from the missing-match prompt',async()=>{state={...state,record:null,status:'Choose a lyric match in settings',candidates:[{id:1} as ViewState['candidates'][number]],ledger:{...state.ledger,...ledgerLines([],0,0),synced:false}};await act(async()=>render());const choose=host.querySelector<HTMLButtonElement>('.match-prompt')!;expect(choose.textContent).toContain('Choose lyric match');await click(choose);expect(commands.at(-1)).toEqual({type:'openSettings',section:'match'});});
+ it('keeps an unresolved result quiet and exposes matching through the gear',async()=>{state={...state,record:null,status:'Lyrics unavailable',candidates:[{id:1} as ViewState['candidates'][number]],ledger:{...state.ledger,...ledgerLines([],0,0),synced:false}};await act(async()=>render());expect(host.querySelector('.match-prompt')).toBeNull();expect(host.textContent).toContain('Lyrics unavailable');expect(commands).toEqual([]);await click(gear());await click(host.querySelector<HTMLButtonElement>('.open-match')!);expect(commands.at(-1)).toEqual({type:'openSettings',section:'match'});});
  it('provides matching from the gear even when lyrics are already selected',async()=>{await click(gear());const change=host.querySelector<HTMLButtonElement>('.open-match')!;expect(change.disabled).toBe(false);await click(change);expect(commands.at(-1)).toEqual({type:'openSettings',section:'match'});expect(host.querySelector('[role="dialog"]')).toBeNull();});
  it('retains the same card and active drag when the lyric line advances',async()=>{
   const card=host.querySelector('.ledger-card')!;

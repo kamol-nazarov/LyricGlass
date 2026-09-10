@@ -1,0 +1,9 @@
+import {it,expect} from 'vitest';
+import {cases} from './evaluation/cases';
+import {confidentMatch as baseline} from './evaluation/baseline';
+import {confidentMatch,assess,recordingTitle} from '../shared/matching';
+function evaluate(match:typeof confidentMatch,old=false){let correctAuto=0,wrongAuto=0,unresolved=0,plausible=0,uncertain=0,incompatible=0,untimed=0;for(const c of cases){const chosen=match(c.q,old?c.records.slice(0,20):c.records);if(!chosen){unresolved++;continue;}if(c.correct.includes(chosen.id))correctAuto++;else wrongAuto++;if(old){chosen.syncedLyrics?plausible++:untimed++;}else{const t=assess(c.q,chosen).timing;if(t==='plausible')plausible++;if(t==='uncertain')uncertain++;if(t==='incompatible')incompatible++;if(t==='untimed')untimed++;}}return{denominator:cases.length,correctAuto,wrongAuto,unresolved,timing:{plausible,uncertain,incompatible,untimed}};}
+it('reports the old and new resolver on the same labeled synthetic corpus',()=>{console.info(JSON.stringify({baseline:evaluate(baseline,true),after:evaluate(confidentMatch),adversarialDenominator:cases.filter(c=>c.adversarial).length}));expect(evaluate(confidentMatch).wrongAuto).toBe(0);});
+it.each(cases)('$name',c=>{const chosen=confidentMatch(c.q,c.records);if(!c.correct.length)expect(chosen).toBeNull();else{expect(chosen).not.toBeNull();expect(c.correct).toContain(chosen!.id);if(c.timing)expect(assess(c.q,chosen!).timing).toBe(c.timing);}});
+it('preserves literal Live, parentheses, hyphens and artist conjunctions',()=>{expect(recordingTitle('Live and Learn (A Story)').title).toBe('Live and Learn (A Story)');expect(recordingTitle('A-B and C & D').title).toBe('A-B and C & D');});
+it('does not merge different timestamp timelines merely because their words and duration agree',()=>{const c=cases[0];expect(confidentMatch(c.q,[c.records[0],{...c.records[0],id:88,syncedLyrics:c.records[0].syncedLyrics!.replace('00:10','00:15')}])).toBeNull();});

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 — Matching and synchronization reliability
+
+- Separate recording identity, lyric availability and timing plausibility; normalize Unicode/decorations/featured credits while retaining recording distinctions.
+- Rerank candidates on meaningful metadata improvements, score before display truncation, and run a cancellable staged resolver with six-call episodes and bounded retry/cooldown.
+- Keep unresolved matches quiet; add Retry lyrics, Forget match, Reset timing and sanitized local diagnostics.
+- Migrate legacy data with a protected backup, explicit provenance, separate cache freshness, video-scoped rejections and independent manual/automatic offsets.
+- Add off-by-default ACRCloud identification, Windows-protected credentials, explicit Chrome/Edge audio-only tab sessions, bounded transient samples and persistent attempt/daily caps.
+- Require two independent audio anchors before automatic alignment; retain manual timing authority and real-word-timestamp-only karaoke.
+- Preserve console-free tray packaging and older extension playback compatibility. Build artifacts are not installed or automatically released.
+- Synthetic baseline: 8 correct / 3 wrong / 19 unresolved of 30; new matcher: 14 / 0 / 16. No live recognition or hardware capture accuracy claim.
+
 ## 0.3.0 — Installable tray application
 
 - Build a per-user Windows installer with Desktop/Start-menu shortcuts to the native GUI executable.

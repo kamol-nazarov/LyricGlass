@@ -1,13 +1,16 @@
 {
   "manifest_version": 3,
   "name": "LyricGlass — YouTube bridge",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Send YouTube and YouTube Music playback to your paired local LyricGlass overlay.",
   "minimum_chrome_version": "120",
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "activeTab",
+    "offscreen"
   ],
+  "optional_permissions": ["tabCapture"],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://music.youtube.com/*",

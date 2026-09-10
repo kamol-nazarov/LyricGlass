@@ -3,7 +3,7 @@ import { browserApi as chrome } from './browser';
 import {canPinSource}from'../shared/sources';
 const $=<T extends HTMLElement>(id:string)=>document.getElementById(id) as T;
 let editing=false;
-async function refresh(){const s=await chrome.runtime.sendMessage({type:'status'});if(!editing)$<HTMLInputElement>('port').value=String(s.port);$('status').textContent=s.status;$('pinStatus').textContent=s.pin===null?'Automatic: most recently started audible tab. Paused selection stays selected.':`Pinned to tab ${s.pin}.`;}
+async function refresh(){const s=await chrome.runtime.sendMessage({type:'status'});if(!editing)$<HTMLInputElement>('port').value=String(s.port);$('status').textContent=s.status;$('pinStatus').textContent=s.pin===null?'Automatic: most recently started audible tab. Paused selection stays selected.':`Pinned to tab ${s.pin}.`;$<HTMLButtonElement>('captureEnable').disabled=!s.captureCapable;$('captureStatus').textContent=s.captureCapable?s.captureReason??'Audio session is off':'Optional tab audio capture is unavailable in Firefox.';}
 $('port').addEventListener('input',()=>editing=true);
 $('details').addEventListener('input',()=>{try{const p=JSON.parse($<HTMLTextAreaElement>('details').value);if(integer(p.port,1024,65535))$<HTMLInputElement>('port').value=String(p.port);}catch{}});
 $('pair').addEventListener('click',async()=>{try{
@@ -17,3 +17,6 @@ $('retry').addEventListener('click',async()=>{await chrome.runtime.sendMessage({
 $('pin').addEventListener('click',async()=>{const [t]=await chrome.tabs.query({active:true,currentWindow:true});if(!t||!canPinSource(t.url)){$('status').textContent='Open a YouTube or YouTube Music playback tab first.';return;}await chrome.runtime.sendMessage({type:'pin',tab:t.id});await refresh();});
 $('unpin').addEventListener('click',async()=>{await chrome.runtime.sendMessage({type:'pin',tab:null});await refresh();});
 void refresh();const timer=setInterval(()=>void refresh(),2000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+const audioStatus=$('captureStatus');
+$('captureEnable').addEventListener('click',async()=>{try{if(!chrome.permissions||!await chrome.permissions.request({permissions:['tabCapture']}))throw Error('Tab capture permission was not granted.');const r=await chrome.runtime.sendMessage({type:'capture-enable'});audioStatus.textContent=r.ok?'Audio session enabled for this tab.':r.error??'Audio capture unavailable in this browser.';}catch(e){audioStatus.textContent=e instanceof Error?e.message:'Audio capture unavailable';}});
+$('captureDisable').addEventListener('click',async()=>{await chrome.runtime.sendMessage({type:'capture-disable'});audioStatus.textContent='Audio session stopped.';});

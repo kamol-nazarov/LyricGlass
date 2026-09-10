@@ -1,0 +1,5 @@
+import{it,expect}from'vitest';
+import{parseMessage,MAX_MESSAGE}from'../shared/protocol';
+import{playback}from'./fixtures';
+it('preserves version-one playback and rejects malformed optional metadata',()=>{const message={v:1,type:'snapshot',tab:1,document:'document1',playback:playback()};expect(parseMessage(JSON.stringify(message))).not.toBeNull();expect(parseMessage(JSON.stringify({...message,playback:{...message.playback,artists:Array(13).fill('x')}}))).toBeNull();});
+it('bounds sample messages without enlarging the playback channel',()=>{expect(MAX_MESSAGE).toBe(16384);expect(parseMessage(JSON.stringify({v:1,type:'sample-chunk',id:'request01',index:0,data:'A'.repeat(8001)}))).toBeNull();expect(parseMessage(JSON.stringify({v:1,type:'sample-chunk',id:'request01',index:65,data:'AAAA'}))).toBeNull();expect(parseMessage(JSON.stringify({v:1,type:'sample-begin',id:'request01',tab:1,document:'document1',video:'abcdefghijk',generation:1,start:42,seconds:10,uncertainty:.05,bytes:320044}))).not.toBeNull();});
