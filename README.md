@@ -2,7 +2,17 @@
 
 A local-first Windows lyrics overlay for YouTube and YouTube Music. Electron runs the desktop overlay and authenticated loopback bridge; a browser extension reports playback; LRCLIB provides lyric records.
 
-## Start on Windows
+## Install the desktop app — no terminal needed
+
+Run **LyricGlass-Setup-0.3.0-x64.exe** to install for your Windows account. The installer creates **LyricGlass** shortcuts on the Desktop and in the Start menu, pointing directly to the installed GUI executable. Node.js, npm and Git are not needed to run the installed app. The installer is unsigned.
+
+Normal installed launches start the tray app without opening a command window or the settings window. The lyric overlay follows your existing visibility preference. Right-click the **LyricGlass tray icon → Settings & pairing** to connect a browser or change preferences; double-clicking an already-running app's shortcut opens settings. Use **tray → Quit LyricGlass** to exit completely. Existing local pairing, lyrics and appearance settings are retained. If Windows puts the icon in tray overflow, open **Show hidden icons**.
+
+Default installation: `%LOCALAPPDATA%\Programs\LyricGlass\LyricGlass.exe`. Do not copy that executable alone; its adjacent runtime/resources are required. Use the installer when moving to another computer. The packaged browser extension folders are under `resources\browser-extension\chrome` and `resources\browser-extension\firefox` inside the installation directory. Load the Chrome/Edge folder or Firefox's `manifest.json` using the browser setup instructions below. An existing paired extension on this computer can keep using its current folder.
+
+Packaging is now explicitly exercised: the 0.3.0 NSIS installer built and installed successfully on the development Windows machine. The installed application was launched through its desktop shortcut, its executable was verified as Windows GUI subsystem 2, and no console/shell/Node process appeared in its process tree. No Windows login or installation on a second machine has been verified. The installer is a local deliverable, not an automatically published GitHub release.
+
+## Run from source on Windows
 
 Requirements: Windows 10/11 x64, Node.js 24 LTS, npm, Git, and Chrome/Edge 120+ or Firefox 128+.
 
@@ -14,6 +24,8 @@ npm run dev
 ```
 
 `npm run dev` builds the desktop and extensions, then opens LyricGlass. It does not watch source files; quit through the tray and rerun after editing. Keep the terminal open during development use.
+
+Quit an installed LyricGlass instance through its tray before running from source. Both use the same single-instance lock and local data; otherwise the installed instance handles the launch instead of running your changed development code.
 
 **Chrome/Edge:** open `chrome://extensions` or `edge://extensions`, enable Developer mode, choose **Load unpacked**, and select `dist\extension`. Pin LyricGlass in the toolbar. Refresh existing YouTube/Music tabs once after installation or an extension update.
 
@@ -101,10 +113,10 @@ npm test                  # Focused offline unit tests
 npm run version:check     # Branch/version consistency
 npm run build             # Desktop and both extension bundles
 npm run build:extension   # Unpacked extension folders
-npm run package:win       # Unsigned x64 NSIS packaging; not validated
+npm run package:win       # Build the per-user x64 Windows installer; never auto-publishes
 ```
 
-Tests use synthetic lyrics, fake clocks, synthetic DOM/media fixtures and mocked filesystem/socket/browser boundaries. They do not launch Electron, open browsers, bind listeners or call YouTube/LRCLIB. Desktop builds, launch and some regular YouTube playback have been exercised during development. This is not comprehensive native/browser validation. Firefox, YouTube Music, display configurations and packaging still need real-machine acceptance checks.
+Tests use synthetic lyrics, fake clocks, synthetic DOM/media fixtures and mocked filesystem/socket/browser boundaries. They do not launch Electron, open browsers, bind listeners or call YouTube/LRCLIB. Desktop builds, launch and some regular YouTube playback have been exercised during development. This is not comprehensive native/browser validation. Firefox, YouTube Music, additional display configurations and installation on other computers still need real-machine acceptance checks.
 
 Source: `desktop` contains main/preload/renderer and local services; `extension` contains browser observation/connection; `shared` contains protocol and pure lyric/timing logic; `tests` contains the focused suite.
 
