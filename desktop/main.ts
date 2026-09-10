@@ -1,4 +1,4 @@
-import { app,BrowserWindow,ipcMain,screen,Tray,Menu,nativeImage,globalShortcut,clipboard,dialog,shell,nativeTheme } from 'electron';
+import { app,BrowserWindow,ipcMain,screen,Tray,Menu,nativeImage,globalShortcut,clipboard,dialog,shell,nativeTheme,safeStorage } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
@@ -15,16 +15,21 @@ import { OverlayDrag } from '../shared/overlay-drag';
 import { OverlayLayout } from './overlay-layout';
 import { configureStartup } from './startup';
 import { STALE_MS } from '../shared/sync';
+import { initialSettingsPage } from '../shared/launch';
+import {RecognitionVault} from './recognition-vault';
+import {Recognizer} from './recognizer';
+let recognitionVault:RecognitionVault,recognizer:Recognizer;
 const overlayDrag=new OverlayDrag();
 let overlayLayout:OverlayLayout|undefined;let overlayReady=false;
 app.setName('LyricGlass');
+if(process.platform==='win32')app.setAppUserModelId('local.lyricglass.desktop');
 let overlay:BrowserWindow|null=null,panel:BrowserWindow|null=null,tray:Tray|null=null,store:Store,controller:Controller,bridge:Bridge,quitting=false,connection='Starting bridge',overlayHeight=280;
 let previous='',pulse:ReturnType<typeof setInterval>;const warnings:string[]=[];
 const shortcuts=['Ctrl+Alt+L — show / hide','Ctrl+Alt+K — lock / unlock'];
 let settingsNavigation:SettingsNavigation={section:'general',request:0};
 const index=path.resolve(__dirname,'../renderer/index.html');const indexURL=pathToFileURL(index).href;
 const areas=()=>[screen.getPrimaryDisplay(),...screen.getAllDisplays().filter(d=>d.id!==screen.getPrimaryDisplay().id)].map(d=>d.workArea);
-function view():ViewState{return{settings:store.data.settings,connection,warning:[store.warning,...warnings].filter(Boolean).join(' '),...controller.view(),paired:!!store.data.origin,shortcuts,settingsNavigation,resolvedTheme:resolvedTheme(store.data.settings,nativeTheme.shouldUseDarkColors),connectionBrowser:store.data.origin?.startsWith('moz-extension:')?'Firefox':store.data.origin?'Chrome / Edge':'Browser',settingsMaximized:panel?.isMaximized()??false};}
+function view():ViewState{return{settings:store.data.settings,connection,warning:[store.warning,...warnings].filter(Boolean).join(' '),...controller.view(),recognition:recognizer?.state(),paired:!!store.data.origin,shortcuts,settingsNavigation,resolvedTheme:resolvedTheme(store.data.settings,nativeTheme.shouldUseDarkColors),connectionBrowser:store.data.origin?.startsWith('moz-extension:')?'Firefox':store.data.origin?'Chrome / Edge':'Browser',settingsMaximized:panel?.isMaximized()??false};}
 function broadcast(){if(!store||!controller)return;const state=view(),serialized=JSON.stringify(state);if(serialized===previous)return;previous=serialized;for(const w of[overlay,panel])if(w&&!w.isDestroyed())w.webContents.send('lyricglass:update',state);}
 function secureWindow(w:BrowserWindow){w.webContents.setWindowOpenHandler(()=>({action:'deny'}));w.webContents.on('will-navigate',e=>e.preventDefault());w.webContents.on('will-attach-webview',e=>e.preventDefault());w.webContents.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));w.webContents.session.setPermissionCheckHandler(()=>false);}
 function applyOverlay(){if(!overlay)return;const s=store.data.settings;overlay.setAlwaysOnTop(true,'floating');overlay.setIgnoreMouseEvents(s.locked,{forward:true});overlay.setFocusable(!s.locked);syncVisibility();menu();broadcast();}
@@ -41,9 +46,16 @@ async function command(e:Electron.IpcMainInvokeEvent,c:unknown){
   if(!senderOK(e)||!object(c)||!text(c.type,40))return{ok:false,error:'Request rejected'};
   try{
     const isPanel=panel?.webContents===e.sender;
-    if(['copyPairing','rotatePairing','search','select','import','align','settingsWindow'].includes(c.type)&&!isPanel)throw Error('Open settings to perform this action.');
-    if(['search','select','import','delay','align'].includes(c.type)&&(!videoId(c.videoId)||c.videoId!==controller.video))throw Error('The selected video changed. Try again.');
+    if(['copyPairing','rotatePairing','search','select','import','align','settingsWindow','retryLyrics','forgetMatch','recognitionConfig','recognitionRemove','recognitionSettings','exportDiagnostics'].includes(c.type)&&!isPanel)throw Error('Open settings to perform this action.');
+    if(['search','select','import','delay','align','retryLyrics','forgetMatch','resetTiming'].includes(c.type)&&(!videoId(c.videoId)||c.videoId!==controller.video))throw Error('The selected video changed. Try again.');
     switch(c.type){
+      case 'retryLyrics':recognizer.retry();controller.retry();break;
+      case 'forgetMatch':recognizer.cancel();controller.forget();break;
+      case 'resetTiming':recognizer.cancel();store.resetTiming(c.videoId as string);break;
+      case 'recognitionConfig':recognizer.cancel(true);recognitionVault.write(c);break;
+      case 'recognitionRemove':recognizer.cancel(true);recognitionVault.remove();store.data.recognition.enabled=false;store.data.recognition.consent=false;store.save();break;
+      case 'recognitionSettings':if(typeof c.enabled!=='boolean'||typeof c.consent!=='boolean'||!integer(c.dailyCap,0,50))throw Error('Invalid recognition settings');if(c.enabled&&(!c.consent||!recognitionVault.configured()))throw Error('Save ACRCloud credentials and consent before enabling recognition.');Object.assign(store.data.recognition,{enabled:c.enabled,consent:c.consent,dailyCap:c.dailyCap});store.save();recognizer.tick();break;
+      case 'exportDiagnostics':{const v=controller.view();const snapshot={version:app.getVersion(),selected:{title:v.title,artist:v.artist,videoId:v.videoId,recordId:v.record?.id,duration:v.ledger.clock.duration,provenance:v.matchProvenance},recognition:recognizer.state(),trace:v.diagnostics};const choice=await dialog.showSaveDialog(panel!,{title:'Export local matching diagnostics',defaultPath:'LyricGlass-diagnostics.json',filters:[{name:'JSON',extensions:['json']}]});if(!choice.canceled&&choice.filePath)await fs.writeFile(choice.filePath,JSON.stringify(snapshot,null,2),'utf8');break;}
       case 'settingsWindow':if(!['minimize','maximize','close'].includes(c.action as string))throw Error('Invalid window action');if(c.action==='minimize')panel!.minimize();else if(c.action==='close')panel!.close();else if(panel!.isMaximized())panel!.unmaximize();else panel!.maximize();break;
       case 'drag':{
         if(overlay?.webContents!==e.sender||store.data.settings.locked||!number(c.x,-100000,100000)||!number(c.y,-100000,100000)||!['start','move','end'].includes(c.phase as string))throw Error('Invalid drag');
@@ -73,7 +85,7 @@ async function command(e:Electron.IpcMainInvokeEvent,c:unknown){
         const id=controller.video!;const choice=await dialog.showOpenDialog(panel!,{title:'Import lyrics for the selected YouTube video',filters:[{name:'LRC lyrics',extensions:['lrc']}],properties:['openFile']});
         if(choice.canceled)break;const file=choice.filePaths[0];if(path.extname(file).toLowerCase()!=='.lrc'||(await fs.stat(file)).size>200000)throw Error('Choose an LRC file smaller than 200 KB');
         const source=await fs.readFile(file,'utf8'),parsed=parseLrc(source);if(!parsed.lines.length)throw Error('This file has no valid LRC timestamps');if(controller.video!==id)throw Error('Video changed during import. Try again.');
-        const p=controller.sessions.current()?.playback;controller.choose({id:Date.now(),trackName:parsed.metadata.ti||p?.title||'Imported LRC',artistName:parsed.metadata.ar||'',albumName:'Local LRC import',duration:p?.duration??0,instrumental:false,plainLyrics:null,syncedLyrics:source});break;
+        const p=controller.sessions.current()?.playback;controller.choose({id:Date.now(),trackName:parsed.metadata.ti||p?.title||'Imported LRC',artistName:parsed.metadata.ar||'',albumName:'Local LRC import',duration:p?.duration??0,instrumental:false,plainLyrics:null,syncedLyrics:source},'import');break;
       }
       case 'providerLink':await shell.openExternal('https://lrclib.net');break;
       default:throw Error('Unknown action');
@@ -83,7 +95,7 @@ async function command(e:Electron.IpcMainInvokeEvent,c:unknown){
 if(!app.requestSingleInstanceLock())app.quit();else{
   app.on('second-instance',(_event,argv)=>{if(store)showSettings(argv.includes('--match')?'match':'general');});
   void app.whenReady().then(()=>{
-    store=new Store(app.getPath('userData'));controller=new Controller(store,new Provider(store),broadcast);
+    store=new Store(app.getPath('userData'));controller=new Controller(store,new Provider(store),broadcast);recognitionVault=new RecognitionVault(app.getPath('userData'),safeStorage);recognizer=new Recognizer(controller,recognitionVault,(instance,message)=>bridge?.send(instance,message)??false);
     overlay=new BrowserWindow({...recoverBounds(store.data.settings,overlayHeight,areas()),frame:false,transparent:true,resizable:false,maximizable:false,minimizable:false,hasShadow:false,skipTaskbar:true,show:false,alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false,webSecurity:true}});
     overlayLayout=new OverlayLayout(overlay,position=>{store.data.settings.x=position.x;store.data.settings.y=position.y;store.save();});
     secureWindow(overlay);overlay.on('close',e=>{if(!quitting){e.preventDefault();store.data.settings.visible=false;store.save();applyOverlay();}});
@@ -91,23 +103,15 @@ if(!app.requestSingleInstanceLock())app.quit();else{
     overlay.once('ready-to-show',()=>{overlayReady=true;position();applyOverlay();});void overlay.loadFile(index);
     // Small bundled raster icon is generated from source bytes, independent of remote assets.
     const pixels=Buffer.alloc(32*32*4);for(let y=0;y<32;y++)for(let x=0;x<32;x++){const i=(y*32+x)*4;const line=Math.abs(y-(10+Math.sin(x/5)*3))<2||Math.abs(y-(21+Math.sin(x/5)*3))<2;pixels[i]=line?180:24;pixels[i+1]=line?230:39;pixels[i+2]=line?215:47;pixels[i+3]=255;}
-    tray=new Tray(nativeImage.createFromBitmap(pixels,{width:32,height:32}));tray.setToolTip('LyricGlass — lyrics above your work');tray.on('double-click',()=>showSettings());menu();
+    const trayIcon=nativeImage.createFromPath(path.join(app.getAppPath(),'assets/app-icon.png'));tray=new Tray(trayIcon.isEmpty()?nativeImage.createFromBitmap(pixels,{width:32,height:32}):trayIcon.resize({width:32,height:32}));tray.setToolTip('LyricGlass — right-click for settings and controls');tray.on('double-click',()=>showSettings());menu();
     if(!globalShortcut.register('Control+Alt+L',toggleVisible))warnings.push('Ctrl+Alt+L is unavailable; use the tray to show/hide.');
     if(!globalShortcut.register('Control+Alt+K',toggleLock))warnings.push('Ctrl+Alt+K is unavailable; use the tray to unlock.');
     ipcMain.handle('lyricglass:state',e=>{if(!senderOK(e))throw Error('Request rejected');return view();});ipcMain.handle('lyricglass:command',command);ipcMain.handle('lyricglass:timing-lines',(e,id)=>{if(!senderOK(e)||e.sender!==panel?.webContents||!videoId(id)||id!==controller.video)throw Error('Selected video changed or request rejected');return controller.timingLines();});
-    bridge=new Bridge(store,s=>{connection=s;broadcast();},(c,i,m)=>controller.message(c,i,m),c=>controller.disconnect(c));bridge.start();
-    nativeTheme.on('updated',broadcast);pulse=setInterval(()=>{syncVisibility();broadcast();},100);screen.on('display-removed',()=>position());screen.on('display-metrics-changed',()=>position());
-    if(process.argv.includes('--match'))showSettings('match');else if(process.argv.includes('--settings')||!store.data.origin)showSettings();
+    bridge=new Bridge(store,s=>{connection=s;broadcast();},(c,i,m)=>{if(['snapshot','remove','pin'].includes(m.type))controller.message(c,i,m);recognizer.message(c,i,m);recognizer.tick();},c=>{controller.disconnect(c);recognizer.disconnect(c);});bridge.start();
+    nativeTheme.on('updated',broadcast);pulse=setInterval(()=>{recognizer.tick();syncVisibility();broadcast();},100);screen.on('display-removed',()=>position());screen.on('display-metrics-changed',()=>position());
+    if(app.isPackaged&&store.data.settings.launchAtStartup){try{configureStartup(app,true,true,process.execPath,app.getAppPath());}catch{warnings.push('Could not update the startup entry to the installed executable. Toggle Launch at startup in settings to retry.');}}
+    const initialPage=initialSettingsPage(process.argv,!!store.data.origin,app.isPackaged);if(initialPage)showSettings(initialPage);
   }).catch(()=>{dialog.showErrorBox('LyricGlass could not start','Check local data permissions and reinstall dependencies.');app.quit();});
   app.on('window-all-closed',()=>{});
-  app.on('before-quit',()=>{quitting=true;clearInterval(pulse);overlayLayout?.capture();controller?.close();bridge?.stop();globalShortcut.unregisterAll();tray?.destroy();try{store?.flush();}catch{}});
+  app.on('before-quit',()=>{quitting=true;clearInterval(pulse);overlayLayout?.capture();recognizer?.cancel(true);controller?.close();bridge?.stop();globalShortcut.unregisterAll();tray?.destroy();try{store?.flush();}catch{}});
 }
-
-
-
-
-
-
-
-
-

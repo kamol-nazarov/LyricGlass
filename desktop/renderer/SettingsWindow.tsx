@@ -5,6 +5,7 @@ import{displayDelay,displayTime}from'../../shared/ledger';
 import{previewScale,previewState}from'../../shared/preview';
 import{LedgerOverlay}from'./LedgerOverlay';
 import{TimingAlignment}from'./TimingAlignment';
+import{RecognitionSettings}from'./RecognitionSettings';
 import{useSettingsNavigation}from'./settings-navigation';
 import'./settings.css';
 
@@ -60,13 +61,17 @@ export function SettingsWindow({state:s,act,error,notice}:Props){
           <div className="settings-card current-video"><div className="settings-eyebrow">CURRENT VIDEO</div><strong>{s.videoId?s.title:'Play a YouTube video to find lyrics'}</strong><div className="current-match"><span className={`small-dot ${hasTiming?'connected':''}`}/>{s.record?<span>{s.timingWarning?'Timing mismatch':hasTiming?'Synced':s.record.instrumental?'Instrumental':'Plain'} · {s.record.artistName} — {s.record.trackName} · <span className="mono">{s.record.albumName==='Local LRC import'?'Local LRC':`LRCLIB #${s.record.id}`}</span></span>:<span>No lyrics selected</span>}</div></div>
           <form className="settings-search" onSubmit={event=>{event.preventDefault();if(s.videoId)void act({type:'search',videoId:s.videoId,query});}}><input id="match-search" aria-label="Search title and artist" placeholder="Search title and artist…" maxLength={300} value={query} onChange={event=>setQuery(event.target.value)}/><button className="settings-primary" disabled={!s.videoId||!query.trim()}>Search</button><button type="button" className="settings-secondary" disabled={!s.videoId} onClick={()=>void act({type:'import',videoId:s.videoId!})}>Import .lrc</button></form>
           {s.candidates.length>0&&<div className="settings-results" aria-label="Lyric search results">{s.candidates.map(result=><button key={result.id} className={`settings-result ${s.record?.id===result.id?'selected':''}`} aria-pressed={s.record?.id===result.id} title={`${result.artistName} — ${result.trackName}${result.timingWarning?` · ${result.timingWarning}`:''}`} onClick={()=>void act({type:'select',videoId:s.videoId!,id:result.id})}><span className="result-info"><span className="result-title">{result.trackName}</span><span className="result-meta">{result.albumName||result.artistName} · {displayTime(result.duration)} · LRCLIB #{result.id}</span></span><span className={`result-badge ${result.hasSynced&&!result.timingWarning?'synced':''}`}>{result.timingWarning?'Check timing':result.hasSynced?'Synced':'Plain'}</span></button>)}</div>}
-          <div className="settings-delay"><div><span>Lyric delay <span className="dim">· saved for this video</span></span><button className="settings-text-button" disabled={!s.record} onClick={()=>delay(0)}>Reset</button></div><div className="settings-stepper"><button disabled={!s.record} aria-label="Lyrics earlier by 250 milliseconds" onClick={()=>delay(s.delay-250)}>−</button><output>{displayDelay(s.delay)}</output><button disabled={!s.record} aria-label="Lyrics later by 250 milliseconds" onClick={()=>delay(s.delay+250)}>+</button></div><p>Positive delay shows lyrics later.</p></div>
+          <div className="settings-delay"><div><span>Lyric delay <span className="dim">· saved for this video</span></span><button className="settings-text-button" disabled={!s.record} onClick={()=>void act({type:'resetTiming',videoId:s.videoId!})}>Reset</button></div><div className="settings-stepper"><button disabled={!s.record} aria-label="Lyrics earlier by 250 milliseconds" onClick={()=>delay(s.delay-250)}>−</button><output>{displayDelay(s.delay)}</output><button disabled={!s.record} aria-label="Lyrics later by 250 milliseconds" onClick={()=>delay(s.delay+250)}>+</button></div><p>Positive delay shows lyrics later.</p></div>
+          <div className="pairing-actions"><button className="settings-secondary" disabled={!s.videoId} onClick={()=>void act({type:'retryLyrics',videoId:s.videoId!})}>Retry lyrics</button><button className="settings-secondary" disabled={!s.record} onClick={()=>void act({type:'forgetMatch',videoId:s.videoId!})}>Forget match</button><button className="settings-secondary" disabled={!s.record} onClick={()=>void act({type:'resetTiming',videoId:s.videoId!})}>Reset timing</button></div>
+          <p>{s.status} · {s.matchProvenance??'No saved decision'}</p>
           <TimingAlignment state={s} act={act} error={error}/>
-          {s.record&&!s.record.hasSynced&&s.plain&&<details className="plain-reading"><summary>Untimed lyrics · manual reading</summary><pre>{s.plain}</pre></details>}
+          {s.record&&s.plain&&<details className="plain-reading"><summary>Untimed lyrics · manual reading</summary><pre>{s.plain}</pre></details>}
+          <RecognitionSettings state={s} act={act}/>
+          <details className="plain-reading"><summary>Local matching diagnostics</summary><p>Heuristic decisions, not verified accuracy. Export includes only selected song metadata and this bounded trace.</p><button className="settings-secondary" onClick={()=>void act({type:'exportDiagnostics'})}>Export diagnostics</button><pre>{JSON.stringify(s.diagnostics??[],null,2)}</pre></details>
         </section>
       </div>
       <LivePreview state={s}/>
     </div>
-    <footer className="settings-footer"><button onClick={()=>void act({type:'providerLink'})}>Lyrics by LRCLIB ↗</button><span title="Settings and playback stay local; track metadata is sent to LRCLIB for lyric lookup.">No audio capture · No accounts · Settings stay on this computer</span></footer>
+    <footer className="settings-footer"><button onClick={()=>void act({type:'providerLink'})}>Lyrics by LRCLIB ↗</button><span title="Track metadata goes to LRCLIB. Optional, consented audio samples go to ACRCloud.">Audio recognition opt-in · Settings stay on this computer</span></footer>
   </main>;
 }

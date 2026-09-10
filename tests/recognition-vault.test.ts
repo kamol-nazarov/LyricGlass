@@ -1,0 +1,7 @@
+import{it,expect,vi,beforeEach}from'vitest';
+const disk=vi.hoisted(()=>new Map<string,Buffer>());
+vi.mock('node:fs',()=>({default:{existsSync:(p:string)=>disk.has(p),statSync:(p:string)=>({size:disk.get(p)?.length??0}),readFileSync:(p:string)=>disk.get(p),mkdirSync:()=>{},writeFileSync:(p:string,s:Buffer)=>disk.set(p,s),renameSync:(a:string,b:string)=>{disk.set(b,disk.get(a)!);disk.delete(a);},unlinkSync:(p:string)=>disk.delete(p)}}));
+import{RecognitionVault}from'../desktop/recognition-vault';
+beforeEach(()=>disk.clear());
+it('uses only OS protection APIs for secrets, with separate removal from pairing storage',()=>{const clear={host:'identify-eu-west-1.acrcloud.com',key:'synthetic-key',secret:'synthetic-secret'};let protectedValue='';const protect={isEncryptionAvailable:()=>true,encryptString:vi.fn((value:string)=>{protectedValue=value;return Buffer.from('encrypted-by-os');}),decryptString:vi.fn(()=>protectedValue)};const vault=new RecognitionVault('fake-data',protect);vault.write(clear);expect([...disk.values()].some(b=>b.toString().includes(clear.secret))).toBe(false);expect(vault.read()).toEqual(clear);expect(protect.encryptString).toHaveBeenCalled();vault.remove();expect(vault.configured()).toBe(false);});
+it('refuses unprotected persistence and reports corrupted ciphertext without leaking errors',()=>{const vault=new RecognitionVault('fake-data',{isEncryptionAvailable:()=>false,encryptString:vi.fn(),decryptString:vi.fn()});expect(()=>vault.write({})).toThrow('protection');expect(disk.size).toBe(0);});

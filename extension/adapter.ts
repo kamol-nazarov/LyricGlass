@@ -13,6 +13,17 @@ function musicMetadata(){
   const artists=Array.from(bar?.querySelectorAll<HTMLAnchorElement>('.byline a[href*="/channel/"], .byline a[href*="/browse/UC"]')??[]).map(a=>a.textContent?.trim()??'').filter(Boolean);
   return {title:title.slice(0,400),artist:(artists.length?[...new Set(artists)].join(', '):byline.split(/\s*[•·]\s*/)[0].trim()).slice(0,200)};
 }
+export function metadataEvidence(id:string){
+ const meta=readMetadata(id),bar=music()?document.querySelector('ytmusic-player-bar'):watchRoot(id);
+ let album='';
+ if(music())album=bar?.querySelector<HTMLAnchorElement>('.byline a[href*="/browse/MPRE"]')?.textContent?.trim()??'';
+ else for(const row of bar?.querySelectorAll('ytd-metadata-row-renderer')??[])if(row.querySelector('#title')?.textContent?.trim().toLowerCase()==='album')album=row.querySelector('#content')?.textContent?.trim()??'';
+ const artists=meta.artist?meta.artist.split(/\s*[,;]\s*/).slice(0,12):[];
+ const provenance=meta.artist?'structured':/^.+?\s+[-–—]\s+.+$/.test(meta.title)?'title-prefix':'unknown';
+ const media=getVideo(),audible=Array.from(document.querySelectorAll<HTMLMediaElement>('video,audio')).filter(m=>!m.paused&&!m.ended&&!m.muted&&m.volume>0);
+ // Multiple audible elements in this tab cannot be attributed to the selected content.
+ return {album:album.slice(0,500),artists,provenance,isolatedAudio:audible.length===1&&audible[0]===media} as const;
+}
 function retainedMusicId(){const meta=musicMetadata(),video=getVideo();return rememberedMusic&&rememberedMusic.video===video&&rememberedMusic.src===(video?.currentSrc??'')&&rememberedMusic.title===meta.title&&rememberedMusic.artist===meta.artist?rememberedMusic.id:null;}
 export function rememberContent(id:string,meta:{title:string;artist:string}){if(music()){const video=getVideo();rememberedMusic={id,...meta,video,src:video?.currentSrc??''};}}
 export function forgetContent(){rememberedMusic=null;}

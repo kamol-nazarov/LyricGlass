@@ -1,3 +1,4 @@
+// Frozen 0.3.0 matching/parser baseline from commit 37a2989; synthetic evaluation only.
 export interface WordTiming { start:number; end:number|null }
 export interface LyricLine { time: number; text: string; words?:WordTiming[] }
 export interface Lyrics { lines: LyricLine[]; metadata: Record<string, string>; offset: number }
@@ -54,12 +55,28 @@ function titleDecoration(value:string) {
   return words.some(word=>media.test(word))&&words.every(word=>media.test(word)||word==='official'||word==='music');
 }
 export function normalizeTitle(s: string) {
-  return s.normalize('NFC').replace(/[‘’]/g,"'").replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\(([^()]*)\)|\[([^\[\]]*)\]/g,(whole,round,square)=>titleDecoration(round??square)?' ':whole)
+  return s.replace(/\(([^()]*)\)|\[([^\[\]]*)\]/g,(whole,round,square)=>titleDecoration(round??square)?' ':whole)
     .replace(/\s+[-|–—]\s+([^|–—]+)$/,(whole,suffix)=>titleDecoration(suffix)?'':whole).replace(/\s+/g,' ').trim();
 }
-export const canonical = (s:string) => normalizeTitle(s).toLowerCase().replace(/[–—]/g,'-').replace(/\s+/g,' ').trim();
+const canonical = (s:string) => normalizeTitle(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 export function songQuery(title: string, artist: string) {
   const clean = normalizeTitle(title); const split = clean.match(/^(.+?)\s+[-–—]\s+(.+)$/);
-  return split && (!artist||canonical(split[1])===canonical(artist)) ? { title:split[2], artist:artist||split[1] } : { title:clean, artist:normalizeTitle(artist) };
+  return split && !artist ? { title:split[2], artist:split[1] } : { title:clean, artist };
 }
-export { assess, rankCandidates, confidentMatch, matchScore, MATCHER_VERSION } from './matching';
+const distinctions = (s:string) => [...s.toLowerCase().matchAll(/\b(live|acoustic|remix|cover|instrumental|sped up|slowed|remaster(?:ed)?)\b/g)].map(x=>x[1]).sort().join('|');
+export function matchScore(query: {title:string;artist:string;duration:number|null}, r: RecordLyrics) {
+  if(recordTimingWarning(r)||r.syncedLyrics&&timelineOverrun(parseLrc(r.syncedLyrics).lines,query.duration)>2)return 0;
+  if (distinctions(query.title) !== distinctions(r.trackName)) return 0;
+  if (canonical(query.title) !== canonical(r.trackName)) return 0;
+  if (!query.artist || canonical(query.artist) !== canonical(r.artistName)) return .45;
+  if (query.duration === null) return .75;
+  const d = Math.abs(query.duration-r.duration);
+  return d <= 3 ? 1 : d <= 15 ? .93 : d <= 30 ? .85 : .6;
+}
+export function confidentMatch(q: {title:string;artist:string;duration:number|null}, results: RecordLyrics[]) {
+  const ranked = results.map(r=>({r,score:matchScore(q,r)})).sort((a,b)=>b.score-a.score || Number(!!b.r.syncedLyrics)-Number(!!a.r.syncedLyrics));
+  if (!ranked.length || ranked[0].score < .85) return null;
+  // Equivalent album duplicates are safe; ambiguous recording durations need a manual choice.
+  if (ranked[1] && ranked[0].score-ranked[1].score < .08 && Math.abs(ranked[0].r.duration-ranked[1].r.duration)>3) return null;
+  return ranked[0].r;
+}

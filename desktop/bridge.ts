@@ -33,7 +33,7 @@ export class Bridge {
           // A restarted worker replaces its old connection; no old playback is reused.
           this.clients.get(instance)?.close(4000,'Replaced');this.clients.set(instance,ws);
           this.store.data.origin=req.headers.origin!;this.store.save();last=now;
-          send({v:VERSION,type:'ready'});this.status('Connected to browser');
+          send({v:VERSION,type:'ready',captureVersion:1});this.status('Connected to browser');
         }else{
           if(this.clients.get(instance)!==ws||m.type==='auth'){ws.close(4002,'Invalid session');return;}
           last=now;if(m.type==='heartbeat')send({v:VERSION,type:'pong'});else this.message(connection,instance,m);
@@ -46,4 +46,5 @@ export class Bridge {
     server.listen(port,'127.0.0.1',()=>this.status(`Waiting for extension on 127.0.0.1:${port}`));
   }
   stop(){for(const ws of this.wss?.clients??[])ws.terminate();this.clients.clear();this.wss?.close();this.server?.close();this.server=undefined;this.wss=undefined;if(this.timer)clearInterval(this.timer);}
+  send(instance:string,message:unknown){const ws=this.clients.get(instance);if(ws?.readyState===WebSocket.OPEN){ws.send(JSON.stringify({v:VERSION,...message as object}));return true;}return false;}
 }

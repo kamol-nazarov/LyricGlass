@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.1 — Extension pairing reply fix
+
+- Recognize the trusted pairing/options page before routing browser-tab messages to the YouTube content-script handler.
+- Handle absent background replies in pairing, status and reconnect controls with a recovery message instead of an undefined-property error.
+- Preserve browser identity, saved pairing and desktop 0.4.0 compatibility; no matching threshold or audio behavior changes.
+- Reproduced the tab-hosted settings failure before the fix; 18 affected offline tests pass. Extension bundles rebuilt in place. Live browser reload remains a user action.
+
+## 0.4.0 — Matching and synchronization reliability
+
+- Separate recording identity, lyric availability and timing plausibility; normalize Unicode/decorations/featured credits while retaining recording distinctions.
+- Rerank candidates on meaningful metadata improvements, score before display truncation, and run a cancellable staged resolver with six-call episodes and bounded retry/cooldown.
+- Keep unresolved matches quiet; add Retry lyrics, Forget match, Reset timing and sanitized local diagnostics.
+- Migrate legacy data with a protected backup, explicit provenance, separate cache freshness, video-scoped rejections and independent manual/automatic offsets.
+- Add off-by-default ACRCloud identification, Windows-protected credentials, explicit Chrome/Edge audio-only tab sessions, bounded transient samples and persistent attempt/daily caps.
+- Require two independent audio anchors before automatic alignment; retain manual timing authority and real-word-timestamp-only karaoke.
+- Preserve console-free tray packaging and older extension playback compatibility. Build artifacts are not installed or automatically released.
+- Synthetic baseline: 8 correct / 3 wrong / 19 unresolved of 30; new matcher: 14 / 0 / 16. No live recognition or hardware capture accuracy claim.
+
+## 0.3.0 — Installable tray application
+
+- Build a per-user Windows installer with Desktop/Start-menu shortcuts to the native GUI executable.
+- Installed launches go directly to the tray without npm, Node, a console window or an automatic settings window.
+- Add a bundled LyricGlass executable/tray icon and include both browser-extension folders in the installation.
+- Preserve local settings/pairing and migrate an already-enabled startup preference to the installed executable.
+- Validate packaging, silent per-user installation, desktop shortcut launch and absence of console child processes on the development Windows machine.
+
 ## 0.2.0 — Settings window and live appearance preview
 
 - Rebuild settings as an 880px two-column window with custom title controls, an independently scrolling controls column, and a live Ledger preview.

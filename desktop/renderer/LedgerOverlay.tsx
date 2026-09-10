@@ -43,8 +43,6 @@ export function LedgerOverlay({state:s,act,error,preview=false}:Props){
   const split=songQuery(s.title,'');
   const track=split.artist&&(!s.artist||split.artist.toLowerCase()===s.artist.toLowerCase())?split.title:display.title;
   const artist=s.artist||split.artist||s.record?.artistName||'';
-  const needsMatch=!!s.videoId&&!s.record&&((s.candidates?.length??0)>0||s.status.startsWith('No match'));
-  const needsTiming=!!s.timingWarning&&s.status.startsWith('Timing');
   const openMatch=()=>{setOpen(false);void act({type:'openSettings',section:'match'});};
   const delay=(value:number)=>{if(s.videoId)void act({type:'delay',videoId:s.videoId,value:Math.max(-600000,Math.min(600000,value))});};
   const theme=(value:'dark'|'light')=>void act({type:'settings',patch:{theme:value,opacity:value==='light'?.82:.72}});
@@ -95,7 +93,7 @@ export function LedgerOverlay({state:s,act,error,preview=false}:Props){
     <div className="lyric-ledger" ref={ledger} aria-label="Lyrics">
       <span className="ledger-marker" aria-hidden="true"/>
       {s.ledger.lines.map(line=><div key={`${s.videoId}:${line.index}`} data-line-index={line.index} className={`ledger-line ${line.relative===0?'is-current':line.relative<0?'is-past':'is-future'} ${Math.abs(line.relative)===2?'is-distant':''}`}>
-        {line.relative===0?(line.text?<Karaoke text={line.text} state={s}/>:needsMatch||needsTiming?(!s.settings.locked?<button className="match-prompt" onClick={openMatch}>{needsTiming?'Fix lyric timing →':'Choose lyric match →'}</button>:<span className="ledger-neutral">Unlock with Ctrl+Alt+K to adjust lyrics</span>):<span className="ledger-neutral">{s.ledger.currentIndex<0||!s.ledger.synced?s.status:'\u00a0'}</span>):line.text||'\u00a0'}
+        {line.relative===0?(line.text?<Karaoke text={line.text} state={s}/>:<span className="ledger-neutral">{s.ledger.currentIndex<0||!s.ledger.synced?s.status:'\u00a0'}</span>):line.text||'\u00a0'}
       </div>)}
     </div>
     <footer className="ledger-footer">
@@ -107,7 +105,7 @@ export function LedgerOverlay({state:s,act,error,preview=false}:Props){
     {open&&!s.settings.locked&&<div ref={popover} className="ledger-popover" role="dialog" aria-label="Overlay settings">
       <button className="open-match" disabled={!s.videoId} onClick={openMatch}>Find / change lyric match →</button>
       <div className="popover-divider"/>
-      <div className="popover-row"><span>Lyric delay</span><button className="delay-reset" disabled={!s.record} onClick={()=>delay(0)}>Reset</button></div>
+      <div className="popover-row"><span>Lyric delay</span><button className="delay-reset" disabled={!s.record} onClick={()=>{if(s.videoId)void act({type:'resetTiming',videoId:s.videoId});}}>Reset</button></div>
       <div className="delay-stepper"><button aria-label="Lyrics earlier by 250 milliseconds" disabled={!s.record} onClick={()=>delay(s.delay-250)}>−</button><output aria-live="polite">{displayDelay(s.delay)}</output><button aria-label="Lyrics later by 250 milliseconds" disabled={!s.record} onClick={()=>delay(s.delay+250)}>+</button></div>
       <div className="popover-divider"/>
       <div className="popover-row"><span>Lock position</span><button className="lock-switch" role="switch" aria-label="Lock position" aria-checked={s.settings.locked} title="Unlock with Ctrl+Alt+K or the tray menu" onClick={()=>{setOpen(false);void act({type:'lock'});}}><span/></button></div>
@@ -115,4 +113,3 @@ export function LedgerOverlay({state:s,act,error,preview=false}:Props){
     </div>}
   </section>;
 }
-

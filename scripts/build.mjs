@@ -9,6 +9,10 @@ export async function extension() {
     await build({ entryPoints: ['extension/worker.ts','extension/content.ts','extension/popup.ts'], outdir, bundle: true, platform: 'browser', target, format: 'iife' });
     await copyFile(`extension/${manifest}`, `${outdir}/manifest.json`);
     for (const f of ['popup.html','popup.css']) await copyFile(`extension/${f}`, `${outdir}/${f}`);
+    if(manifest==='manifest.json'){
+      await build({entryPoints:['extension/offscreen.ts'],outdir,bundle:true,platform:'browser',target,format:'iife'});
+      for(const f of ['offscreen.html','capture-worklet.js'])await copyFile(`extension/${f}`,`${outdir}/${f}`);
+    }
   }
 }
 export async function desktop() {

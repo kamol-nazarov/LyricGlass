@@ -5,5 +5,6 @@
 <label>Loopback port<input id="port" type="number" min="1024" max="65535" value="43821"></label>
 <button id="pair">Pair with desktop</button><button id="retry" class="secondary">Reconnect</button>
 <hr><button id="pin" class="secondary">Use this YouTube tab</button><button id="unpin" class="secondary">Automatic tab selection</button><p id="pinStatus"></p>
-<p class="muted">Start the desktop app first. Pairing is stored only in trusted extension storage. Allow local-network access if your browser asks. No YouTube playback is modified.</p>
+<details><summary>Optional audio identification</summary><p>First enable recognition and consent in desktop settings. This session captures only this tab's audio. It stays open until stopped; no samples are buffered outside eligible recognition windows. Ten-second samples may be sent to ACRCloud, whose retention policy applies.</p><button id="captureEnable" class="secondary">Enable audio for this tab</button><button id="captureDisable" class="secondary">Stop audio session</button><p id="captureStatus"></p></details>
+<p class="muted">Start the desktop app first. Pairing is stored only in trusted extension storage. Allow local-network access if your browser asks. Optional capture preserves audible playback.</p>
 <script src="popup.js"></script></body></html>
