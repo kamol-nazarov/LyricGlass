@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 — Extension pairing reply fix
+
+- Recognize the trusted pairing/options page before routing browser-tab messages to the YouTube content-script handler.
+- Handle absent background replies in pairing, status and reconnect controls with a recovery message instead of an undefined-property error.
+- Preserve browser identity, saved pairing and desktop 0.4.0 compatibility; no matching threshold or audio behavior changes.
+- Reproduced the tab-hosted settings failure before the fix; 18 affected offline tests pass. Extension bundles rebuilt in place. Live browser reload remains a user action.
+
 ## 0.4.0 — Matching and synchronization reliability
 
 - Separate recording identity, lyric availability and timing plausibility; normalize Unicode/decorations/featured credits while retaining recording distinctions.

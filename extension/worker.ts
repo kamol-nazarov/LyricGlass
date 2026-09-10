@@ -35,7 +35,9 @@ function connect(){
 async function restart(){await capture.stop();clearTimeout(reconnect);clearTimeout(authTimer);clearInterval(heartbeat);const old=socket;socket=null;old?.close();state.disconnected();connect();}
 chrome.runtime.onMessage.addListener((m,sender,reply)=>{
   if(sender.id!==chrome.runtime.id)return;
-  if(sender.tab){
+  // The options page uses popup.html too, but Chrome supplies sender.tab for it.
+  const trustedSettings=sender.url===chrome.runtime.getURL('popup.html')&&(!sender.tab||sender.frameId===0);
+  if(sender.tab&&!trustedSettings){
     const frameUrl=sourceUrl(sender.url),currentUrl=sourceUrl(tabUrls.get(sender.tab.id!)??sender.tab.url??sender.url);
     if(sender.frameId!==0||!frameUrl||!currentUrl||frameUrl.origin!==currentUrl.origin||(sender.documentLifecycle&&sender.documentLifecycle!=='active'))return;
     const tab=sender.tab.id!;const doc=sender.documentId??(identity(m?.document)?m.document:undefined);

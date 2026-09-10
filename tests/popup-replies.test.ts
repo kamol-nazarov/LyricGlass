@@ -1,0 +1,12 @@
+// @vitest-environment jsdom
+import{it,expect,vi,afterEach}from'vitest';
+import fs from'node:fs';
+afterEach(()=>{window.dispatchEvent(new Event('pagehide'));vi.clearAllTimers();vi.useRealTimers();vi.unstubAllGlobals();vi.resetModules();document.body.innerHTML='';});
+it('handles a missing background reply without crashing or changing pairing',async()=>{
+ vi.useFakeTimers();document.body.innerHTML=fs.readFileSync('extension/popup.html','utf8');const sendMessage=vi.fn(async()=>undefined);vi.stubGlobal('browser',undefined);vi.stubGlobal('chrome',{runtime:{sendMessage}});vi.stubGlobal('fetch',vi.fn(async()=>({status:204})));await import('../extension/popup');for(let i=0;i<8;i++)await Promise.resolve();expect(document.getElementById('status')!.textContent).toContain('Extension background did not reply');
+ (document.getElementById('details') as HTMLTextAreaElement).value=JSON.stringify({v:1,secret:'ab'.repeat(32),port:43281});(document.getElementById('port') as HTMLInputElement).value='43281';document.getElementById('pair')!.click();for(let i=0;i<10;i++)await Promise.resolve();expect(document.getElementById('status')!.textContent).not.toContain('Cannot read');expect(document.getElementById('status')!.textContent).toContain('Saved pairing is retained');expect(sendMessage).toHaveBeenCalledWith({type:'pair',secret:'ab'.repeat(32),port:43281});
+ document.getElementById('retry')!.click();for(let i=0;i<8;i++)await Promise.resolve();expect(document.getElementById('status')!.textContent).toContain('Reload LyricGlass');expect(sendMessage.mock.calls.some(([m])=>(m as any).type==='capture-enable')).toBe(false);
+});
+it('clears pairing input only after a successful background acknowledgement',async()=>{
+ vi.useFakeTimers();document.body.innerHTML=fs.readFileSync('extension/popup.html','utf8');vi.stubGlobal('browser',undefined);vi.stubGlobal('chrome',{runtime:{sendMessage:vi.fn(async(m:any)=>m.type==='status'?{status:'Connected',port:43281,pin:null,captureCapable:true,captureReason:'Audio session is off'}:{ok:true})}});vi.stubGlobal('fetch',vi.fn(async()=>({status:204})));await import('../extension/popup');for(let i=0;i<8;i++)await Promise.resolve();(document.getElementById('details') as HTMLTextAreaElement).value=JSON.stringify({v:1,secret:'ab'.repeat(32),port:43281});document.getElementById('pair')!.click();for(let i=0;i<12;i++)await Promise.resolve();expect((document.getElementById('details') as HTMLTextAreaElement).value).toBe('');expect(document.getElementById('status')!.textContent).toBe('Connected');
+});
