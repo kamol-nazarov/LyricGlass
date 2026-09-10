@@ -1,6 +1,6 @@
 {
   "name": "lyricglass",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Local YouTube synchronized lyrics overlay for Windows",
   "author": "LyricGlass local project",
@@ -10,7 +10,7 @@
     "build": "node scripts/build.mjs",
     "build:extension": "node scripts/build.mjs extension",
     "test": "vitest run",
-    "package:win": "npm run build && electron-builder --win nsis",
+    "package:win": "npm run build && electron-builder --win nsis --publish never",
     "version:new": "node scripts/version-control.mjs new",
     "version:check": "node scripts/version-control.mjs check",
     "hooks:install": "node scripts/version-control.mjs install-hooks",
@@ -56,13 +56,31 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "assets/app-icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
-    }
+      "createDesktopShortcut": "always",
+      "perMachine": false,
+      "allowElevation": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LyricGlass",
+      "runAfterFinish": false,
+      "deleteAppDataOnUninstall": false
+    },
+    "extraResources": [
+      {
+        "from": "dist/extension",
+        "to": "browser-extension/chrome"
+      },
+      {
+        "from": "dist/extension-firefox",
+        "to": "browser-extension/firefox"
+      }
+    ],
+    "artifactName": "LyricGlass-Setup-${version}-${arch}.${ext}"
   },
   "repository": {
     "url": "git+https://github.com/kamol-nazarov/LyricGlass.git",
